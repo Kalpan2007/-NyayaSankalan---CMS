@@ -150,6 +150,40 @@ export const addNotification = (notification: Omit<Notification, 'id' | 'created
   localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify(notifications));
 };
 
+// Document Request functions
+export const getDocumentRequests = (): DocumentRequest[] => {
+  const requests = localStorage.getItem(KEYS.ANALYTICS + '_doc_requests');
+  return requests ? JSON.parse(requests) : [];
+};
+
+export const setDocumentRequests = (requests: DocumentRequest[]): void => {
+  localStorage.setItem(KEYS.ANALYTICS + '_doc_requests', JSON.stringify(requests));
+};
+
+export const addDocumentRequest = (req: Omit<DocumentRequest, 'id' | 'createdAt' | 'updatedAt'>): void => {
+  const requests = getDocumentRequests();
+  const newReq: DocumentRequest = {
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...req
+  } as DocumentRequest;
+  requests.push(newReq);
+  setDocumentRequests(requests);
+  addAuditLog({ action: 'DOCUMENT_REQUEST_CREATED', resource: 'DOCUMENT_REQUEST', resourceId: newReq.id, details: { caseId: req.caseId, type: req.type } });
+  addNotification({ title: 'Document Request', message: `New ${req.type.replace(/_/g, ' ')} requested for case ${req.caseId}`, type: 'info', read: false, userId: '' });
+};
+
+export const updateDocumentRequest = (requestId: string, updates: Partial<DocumentRequest>): void => {
+  const requests = getDocumentRequests();
+  const index = requests.findIndex(r => r.id === requestId);
+  if (index !== -1) {
+    requests[index] = { ...requests[index], ...updates, updatedAt: new Date().toISOString() };
+    setDocumentRequests(requests);
+    addAuditLog({ action: 'DOCUMENT_REQUEST_UPDATED', resource: 'DOCUMENT_REQUEST', resourceId: requestId, details: updates });
+  }
+};
+
 // Initialize sample data
 export const initializeSampleData = (): void => {
   if (!localStorage.getItem(KEYS.FIRS)) {

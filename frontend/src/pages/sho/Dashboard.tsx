@@ -1,19 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, FolderOpen, Clock, CheckCircle, AlertTriangle, BarChart3, Upload, Users, Shield, Bell } from 'lucide-react';
-import { getCases, getFIRs, getNotifications } from '../../utils/localStorage';
+import { getCases, getFIRs, getNotifications, updateCase, addAuditLog } from '../../utils/localStorage';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { Case } from '../../types';
 import StatusBadge from '../../components/UI/StatusBadge';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const rolePath = user?.role === 'court_clerk' ? 'clerk' : user?.role || 'sho';
-  const cases = getCases();
+  const [cases, setCases] = useState<Case[]>(() => getCases());
+  const refreshCases = () => setCases(getCases());
+
+  const handleApproveFromDashboard = (caseId: string) => {
+    updateCase(caseId, { status: 'approved_by_sho' });
+    addAuditLog({ action: 'APPROVED_BY_SHO', resource: 'CASE', resourceId: caseId, details: {} });
+    toast.success('Approved');
+    refreshCases();
+  };
   const firs = getFIRs();
   const notifications = getNotifications().filter(n => n.userId === user?.id || !n.userId);
 
   const getDashboardData = () => {
     switch (user?.role) {
-      case 'police':
+      case 'police': {
         const policeCases = cases.filter(c => c.assignedOfficerId === user?.id);
         return {
           title: 'Police Officer Dashboard',
@@ -30,6 +41,7 @@ const Dashboard: React.FC = () => {
             { label: 'Generate Documents', icon: FileText, to: `/${rolePath}/documents`, color: 'bg-purple-600' },
           ]
         };
+      }
       case 'sho':
         return {
           title: 'Senior Officer Dashboard',
@@ -40,10 +52,10 @@ const Dashboard: React.FC = () => {
             { label: 'Urgent Reviews', value: cases.filter(c => c.status === 'submitted_to_sho' && new Date().getTime() - new Date(c.createdAt).getTime() > 24 * 60 * 60 * 1000).length, icon: AlertTriangle, color: 'red' },
           ],
           quickActions: [
-            { label: 'Review Cases', icon: FolderOpen, to: '/cases', color: 'bg-blue-600' },
-            { label: 'Assign Cases', icon: Users, to: '/assign', color: 'bg-green-600' },
-            { label: 'Analytics', icon: BarChart3, to: '/analytics', color: 'bg-purple-600' },
-            { label: 'Audit Trail', icon: Shield, to: '/audit', color: 'bg-gray-600' },
+            { label: 'Review Cases', icon: FolderOpen, to: `/${rolePath}/cases`, color: 'bg-blue-600' },
+            { label: 'Assign Cases', icon: Users, to: `/${rolePath}/assign`, color: 'bg-green-600' },
+            { label: 'Analytics', icon: BarChart3, to: `/${rolePath}/analytics`, color: 'bg-purple-600' },
+            { label: 'Audit Trail', icon: Shield, to: `/${rolePath}/audit`, color: 'bg-gray-600' },
           ]
         };
       case 'court_clerk':
@@ -104,7 +116,12 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="border-b border-gray-800 pb-4">
-        <h1 className="text-2xl font-bold text-white">{title}</h1>
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <span className="ml-3 inline-block px-2 py-1 bg-gray-800 text-xs rounded uppercase">
+            {user?.role ? (user.role === 'court_clerk' ? 'Clerk' : user.role?.toUpperCase()) : ''}
+          </span>
+        </div>
         <p className="text-gray-400">Welcome back, {user?.name}</p>
       </div>
 
@@ -130,15 +147,15 @@ const Dashboard: React.FC = () => {
         <h3 className="text-lg font-medium text-white mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {quickActions.map((action, index) => (
-            <a 
+            <Link 
               key={index}
-              href={action.to}
+              to={action.to}
               className={`${action.color} rounded-lg p-4 text-white text-center hover:opacity-90 transition-opacity`}
             >
               <action.icon className="h-8 w-8 mx-auto mb-2" />
               <p className="text-sm font-medium">{action.label}</p>
-            </a>
-          ))}
+            </Link>
+          ))} 
         </div>
       </div>
 
@@ -154,7 +171,14 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-sm font-medium text-white">{case_.title}</h4>
                     <p className="text-xs text-gray-400">{case_.caseNumber}</p>
                   </div>
-                  <StatusBadge status={case_.status} />
+                  <div className="flex items-center space-x-2">
+                    <StatusBadge status={case_.status} />
+                    {user?.role === 'sho' && case_.status === 'submitted_to_sho' && (
+                      <button onClick={() => handleApproveFromDashboard(case_.id)} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700">
+                        Approve
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (

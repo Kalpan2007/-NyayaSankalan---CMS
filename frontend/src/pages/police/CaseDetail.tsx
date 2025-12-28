@@ -1,27 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, 
   FileText, 
-  Clock, 
-  User, 
-  MapPin, 
-  Calendar,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   Eye,
   Download,
-  Upload,
   Edit,
   Send,
   Shield
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getCases, getFIRs, updateCase, addAuditLog } from '../../utils/localStorage';
-import { Case, FIR, Document, TimelineEntry } from '../../types';
+import { getCases, getFIRs, updateCase, addAuditLog, getDocumentRequests, addDocumentRequest, updateDocumentRequest, addNotification } from '../../utils/localStorage';
+import { Document, TimelineEntry, DocumentRequest } from '../../types';
 import StatusBadge from '../../components/UI/StatusBadge';
 import Timeline from '../../components/UI/Timeline';
+import Modal from '../../components/UI/Modal';
+import { toast } from 'react-hot-toast';
 
 const CaseDetail: React.FC = () => {
   const { caseId } = useParams<{ caseId: string }>();
@@ -45,11 +41,28 @@ const CaseDetail: React.FC = () => {
   
   const rolePrefix = getRolePrefix();
   
+  const [, setRefreshKey] = useState(0);
   const allCases = getCases();
   const allFIRs = getFIRs();
   
   const currentCase = allCases.find(c => c.id === caseId);
   const relatedFIR = allFIRs.find(f => f.id === currentCase?.firId);
+
+  // Document requests state
+  const [requests, setRequests] = useState<DocumentRequest[]>(() => getDocumentRequests().filter((r: DocumentRequest) => r.caseId === caseId));
+  const refreshRequests = () => setRequests(getDocumentRequests().filter((r: DocumentRequest) => r.caseId === caseId));
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestType, setRequestType] = useState<'warrant'|'charge_sheet'|'remand_application'|'other'>('warrant');
+  const [requestNotes, setRequestNotes] = useState('');
+
+  // Edit fields (moved up so hooks run unconditionally)
+  const [editTitle, setEditTitle] = useState(currentCase?.title || '');
+  const [editDescription, setEditDescription] = useState(currentCase?.description || '');
+
+  useEffect(() => {
+    setEditTitle(currentCase?.title || '');
+    setEditDescription(currentCase?.description || '');
+  }, [currentCase]);
   
   if (!currentCase) {
     return (
@@ -189,18 +202,11 @@ const CaseDetail: React.FC = () => {
   const canApprove = user?.role === 'sho' && currentCase.status === 'submitted_to_sho';
   const canSubmitToCourt = user?.role === 'sho' && currentCase.status === 'approved_by_sho';
   const canAccept = user?.role === 'court_clerk' && currentCase.status === 'submitted_to_court';
-  const canViewDocuments = ['police', 'sho', 'court_clerk', 'judge'].includes(user?.role || '');
 
   // Edit mode via query param ?edit=true
   const searchParams = new URLSearchParams(location.search);
   const isEditMode = searchParams.get('edit') === 'true';
-  const [editTitle, setEditTitle] = React.useState(currentCase.title);
-  const [editDescription, setEditDescription] = React.useState(currentCase.description);
 
-  React.useEffect(() => {
-    setEditTitle(currentCase.title);
-    setEditDescription(currentCase.description);
-  }, [currentCase]);
 
   const handleSaveEdit = () => {
     if (!canEdit) return;
@@ -221,6 +227,61 @@ const CaseDetail: React.FC = () => {
 
   const handleStartEdit = () => {
     navigate(`${rolePrefix}/cases/${currentCase.id}?edit=true`);
+  };
+
+  const handleCreateRequest = () => {
+    if (!user || !currentCase) return;
+    addDocumentRequest({
+      caseId: currentCase.id,
+      requestedBy: user.id,
+      requestedByName: user.name,
+      type: requestType,
+      notes: requestNotes,
+      status: 'requested'
+    });
+    addAuditLog({ action: 'DOCUMENT_REQUEST_SUBMITTED', resource: 'DOCUMENT_REQUEST', resourceId: currentCase.id, details: { type: requestType } });
+    toast.success('Request submitted');
+    setIsRequestModalOpen(false);
+    setRequestNotes('');
+    refreshRequests();
+  };
+
+  const handleForwardRequest = (requestId: string) => {
+    updateDocumentRequest(requestId, { status: 'forwarded' });
+    toast.success('Request forwarded to Clerk');
+    refreshRequests();
+  };
+
+  const handleAcceptRequest = (requestId: string, type: string) => {
+    const reqs = getDocumentRequests();
+    const req = reqs.find((r: DocumentRequest) => r.id === requestId);
+    if (!req || !currentCase) return;
+
+    const docTypeMapping: Record<string, Document['type']> = {
+      warrant: 'report',
+      charge_sheet: 'charge_sheet',
+      remand_application: 'remand_application',
+      other: 'report'
+    };
+
+    const newDoc: Document = {
+      id: Date.now().toString(),
+      name: `${type.replace(/_/g,' ')} - ${currentCase.caseNumber}`,
+      type: docTypeMapping[type] || 'report',
+      fileName: `${type}-${Date.now()}.pdf`,
+      fileSize: 0,
+      uploadedBy: user?.name || 'Clerk',
+      uploadedAt: new Date().toISOString(),
+      required: true,
+      status: 'uploaded'
+    };
+
+    updateCase(currentCase.id, { documents: [...(currentCase.documents || []), newDoc] });
+    updateDocumentRequest(requestId, { status: 'accepted', assignedTo: user?.id });
+    addNotification({ title: 'Document Ready', message: `Document ${newDoc.name} attached to case ${currentCase.caseNumber}`, type: 'success', read: false, userId: currentCase.assignedOfficerId });
+    toast.success('Document attached and receipt sent');
+    setRefreshKey(k => k + 1);
+    refreshRequests();
   };
 
   const getActionButtons = () => {
@@ -398,13 +459,42 @@ const CaseDetail: React.FC = () => {
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-medium text-white">Documents</h2>
-              <Link 
-                to={`${rolePrefix}/documents?caseId=${currentCase.id}`}
-                className="text-blue-400 hover:text-blue-300 text-sm flex items-center"
-              >
-                View All <ArrowLeft className="h-4 w-4 ml-1 rotate-180" />
-              </Link>
+              <div className="flex items-center space-x-3">
+                {user?.role === 'police' && (
+                  <button onClick={() => setIsRequestModalOpen(true)} className="inline-flex items-center text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">
+                    <Send className="h-4 w-4 mr-1" /> Request Document
+                  </button>
+                )}
+                <Link 
+                  to={`${rolePrefix}/documents?caseId=${currentCase.id}`}
+                  className="text-blue-400 hover:text-blue-300 text-sm flex items-center"
+                >
+                  View All <ArrowLeft className="h-4 w-4 ml-1 rotate-180" />
+                </Link>
+              </div>
             </div>
+
+            <Modal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} title="Request Court Document">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-gray-400">Document Type</label>
+                  <select value={requestType} onChange={(e) => setRequestType(e.target.value as 'warrant'|'charge_sheet'|'remand_application'|'other')} className="mt-1 block w-full bg-gray-800 text-white p-2 rounded border border-gray-700">
+                    <option value="warrant">Warrant</option>
+                    <option value="charge_sheet">Charge Sheet</option>
+                    <option value="remand_application">Remand Application</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400">Notes (optional)</label>
+                  <textarea value={requestNotes} onChange={(e) => setRequestNotes(e.target.value)} className="mt-1 block w-full bg-gray-800 text-white p-2 rounded border border-gray-700" rows={3} />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button onClick={() => setIsRequestModalOpen(false)} className="px-3 py-2 border rounded text-sm text-gray-300">Cancel</button>
+                  <button onClick={handleCreateRequest} className="px-3 py-2 bg-blue-600 text-white rounded text-sm">Submit Request</button>
+                </div>
+              </div>
+            </Modal> 
             {currentCase.documents && currentCase.documents.length > 0 ? (
               <div className="space-y-3">
                 {currentCase.documents.slice(0, 3).map((doc: Document) => (
@@ -435,6 +525,31 @@ const CaseDetail: React.FC = () => {
               </div>
             ) : (
               <p className="text-gray-400 text-sm">No documents uploaded yet.</p>
+            )}
+
+            {requests.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium text-white mb-2">Document Requests</h3>
+                <div className="space-y-2">
+                  {requests.map(r => (
+                    <div key={r.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                      <div>
+                        <p className="text-sm text-white">{r.type.replace(/_/g,' ')} {r.notes ? `— ${r.notes}` : ''}</p>
+                        <p className="text-xs text-gray-400">Requested by {r.requestedByName || r.requestedBy} • {new Date(r.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <StatusBadge status={r.status === 'requested' ? 'preparing' : r.status === 'forwarded' ? 'submitted_to_sho' : 'approved_by_sho'} />
+                        {user?.role === 'sho' && r.status === 'requested' && (
+                          <button onClick={() => handleForwardRequest(r.id)} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-yellow-600 text-white hover:bg-yellow-700">Forward</button>
+                        )}
+                        {user?.role === 'court_clerk' && r.status === 'forwarded' && (
+                          <button onClick={() => handleAcceptRequest(r.id, r.type)} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700">Accept & Attach</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>

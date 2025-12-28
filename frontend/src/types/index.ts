@@ -78,6 +78,19 @@ export interface AuditLog {
   details: Record<string, any>;
 }
 
+export interface DocumentRequest {
+  id: string;
+  caseId: string;
+  requestedBy: string;
+  requestedByName?: string;
+  type: 'warrant' | 'charge_sheet' | 'remand_application' | 'other';
+  notes?: string;
+  status: 'requested' | 'forwarded' | 'accepted' | 'rejected';
+  assignedTo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Notification {
   id: string;
   title: string;

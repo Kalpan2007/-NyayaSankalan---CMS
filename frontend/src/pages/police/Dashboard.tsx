@@ -1,19 +1,30 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, FolderOpen, Clock, CheckCircle, AlertTriangle, BarChart3, Upload, Users, Shield, Bell } from 'lucide-react';
-import { getCases, getFIRs, getNotifications } from '../../utils/localStorage';
+import { getCases, getFIRs, getNotifications, updateCase, addAuditLog } from '../../utils/localStorage';
+import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { toast } from 'react-hot-toast';
 import StatusBadge from '../../components/UI/StatusBadge';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const rolePath = user?.role === 'court_clerk' ? 'clerk' : user?.role || 'police';
-  const cases = getCases();
+  const [cases, setCases] = useState(() => getCases());
+  const refreshCases = () => setCases(getCases());
+
+  const handleSubmitFromDashboard = (caseId: string) => {
+    updateCase(caseId, { status: 'submitted_to_sho' });
+    addAuditLog({ action: 'SUBMIT_TO_SHO', resource: 'CASE', resourceId: caseId, details: {} });
+    toast.success('Submitted to SHO');
+    refreshCases();
+  };
   const firs = getFIRs();
   const notifications = getNotifications().filter(n => n.userId === user?.id || !n.userId);
 
   const getDashboardData = () => {
     switch (user?.role) {
-      case 'police':
+      case 'police': {
         const policeCases = cases.filter(c => c.assignedOfficerId === user?.id);
         return {
           title: 'Police Officer Dashboard',
@@ -30,6 +41,7 @@ const Dashboard: React.FC = () => {
             { label: 'Generate Documents', icon: FileText, to: `/${rolePath}/documents`, color: 'bg-purple-600' },
           ]
         };
+      }
       case 'sho':
         return {
           title: 'Senior Officer Dashboard',
@@ -40,10 +52,10 @@ const Dashboard: React.FC = () => {
             { label: 'Urgent Reviews', value: cases.filter(c => c.status === 'submitted_to_sho' && new Date().getTime() - new Date(c.createdAt).getTime() > 24 * 60 * 60 * 1000).length, icon: AlertTriangle, color: 'red' },
           ],
           quickActions: [
-            { label: 'Review Cases', icon: FolderOpen, to: '/cases', color: 'bg-blue-600' },
-            { label: 'Assign Cases', icon: Users, to: '/assign', color: 'bg-green-600' },
-            { label: 'Analytics', icon: BarChart3, to: '/analytics', color: 'bg-purple-600' },
-            { label: 'Audit Trail', icon: Shield, to: '/audit', color: 'bg-gray-600' },
+            { label: 'Review Cases', icon: FolderOpen, to: `/${rolePath}/cases`, color: 'bg-blue-600' },
+            { label: 'Assign Cases', icon: Users, to: `/${rolePath}/assign`, color: 'bg-green-600' },
+            { label: 'Analytics', icon: BarChart3, to: `/${rolePath}/analytics`, color: 'bg-purple-600' },
+            { label: 'Audit Trail', icon: Shield, to: `/${rolePath}/audit`, color: 'bg-gray-600' },
           ]
         };
       case 'court_clerk':
@@ -56,10 +68,10 @@ const Dashboard: React.FC = () => {
             { label: 'Receipts Generated', value: cases.filter(c => c.status === 'court_acknowledged').length, icon: BarChart3, color: 'purple' },
           ],
           quickActions: [
-            { label: 'Review Cases', icon: FolderOpen, to: '/cases', color: 'bg-blue-600' },
-            { label: 'Generate Receipt', icon: FileText, to: '/generate', color: 'bg-green-600' },
-            { label: 'Case Timeline', icon: Clock, to: '/timeline', color: 'bg-yellow-600' },
-            { label: 'Notifications', icon: Bell, to: '/notifications', color: 'bg-purple-600' },
+            { label: 'Review Cases', icon: FolderOpen, to: `/${rolePath}/cases`, color: 'bg-blue-600' },
+            { label: 'Generate Receipt', icon: FileText, to: `/${rolePath}/generate`, color: 'bg-green-600' },
+            { label: 'Case Timeline', icon: Clock, to: `/${rolePath}/timeline`, color: 'bg-yellow-600' },
+            { label: 'Notifications', icon: Bell, to: `/${rolePath}/notifications`, color: 'bg-purple-600' },
           ]
         };
       case 'judge':
@@ -72,10 +84,10 @@ const Dashboard: React.FC = () => {
             { label: 'Recent Activity', value: cases.filter(c => new Date().getTime() - new Date(c.updatedAt).getTime() < 7 * 24 * 60 * 60 * 1000).length, icon: BarChart3, color: 'purple' },
           ],
           quickActions: [
-            { label: 'View Cases', icon: FolderOpen, to: '/cases', color: 'bg-blue-600' },
-            { label: 'Documents', icon: FileText, to: '/documents', color: 'bg-green-600' },
-            { label: 'Case Timeline', icon: Clock, to: '/timeline', color: 'bg-yellow-600' },
-            { label: 'Judgments', icon: FileText, to: '/judgments', color: 'bg-purple-600' },
+            { label: 'View Cases', icon: FolderOpen, to: `/${rolePath}/cases`, color: 'bg-blue-600' },
+            { label: 'Documents', icon: FileText, to: `/${rolePath}/documents`, color: 'bg-green-600' },
+            { label: 'Case Timeline', icon: Clock, to: `/${rolePath}/timeline`, color: 'bg-yellow-600' },
+            { label: 'Judgments', icon: FileText, to: `/${rolePath}/judgments`, color: 'bg-purple-600' },
           ]
         };
       default:
@@ -104,7 +116,12 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="border-b border-gray-800 pb-4">
-        <h1 className="text-2xl font-bold text-white">{title}</h1>
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <span className="ml-3 inline-block px-2 py-1 bg-gray-800 text-xs rounded uppercase">
+            {user?.role ? (user.role === 'court_clerk' ? 'Clerk' : user.role?.toUpperCase()) : ''}
+          </span>
+        </div>
         <p className="text-gray-400">Welcome back, {user?.name}</p>
       </div>
 
@@ -130,15 +147,15 @@ const Dashboard: React.FC = () => {
         <h3 className="text-lg font-medium text-white mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {quickActions.map((action, index) => (
-            <a 
+            <Link 
               key={index}
-              href={action.to}
+              to={action.to}
               className={`${action.color} rounded-lg p-4 text-white text-center hover:opacity-90 transition-opacity`}
             >
               <action.icon className="h-8 w-8 mx-auto mb-2" />
               <p className="text-sm font-medium">{action.label}</p>
-            </a>
-          ))}
+            </Link>
+          ))} 
         </div>
       </div>
 
@@ -154,7 +171,14 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-sm font-medium text-white">{case_.title}</h4>
                     <p className="text-xs text-gray-400">{case_.caseNumber}</p>
                   </div>
-                  <StatusBadge status={case_.status} />
+                  <div className="flex items-center space-x-2">
+                    <StatusBadge status={case_.status} />
+                    {user?.role === 'police' && case_.status === 'preparing' && (
+                      <button onClick={() => handleSubmitFromDashboard(case_.id)} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700">
+                        Submit
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (

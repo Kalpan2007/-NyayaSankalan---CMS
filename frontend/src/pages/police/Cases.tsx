@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Search, Filter, Eye, CreditCard as Edit, UserCheck } from 'lucide-react';
-import { getCases } from '../../utils/localStorage';
+import { getCases, updateCase, addAuditLog } from '../../utils/localStorage';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { Case } from '../../types';
 
@@ -12,7 +13,16 @@ const Cases: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   
-  const allCases = getCases();
+  const [allCases, setAllCases] = useState(() => getCases());
+
+  const refreshCases = () => setAllCases(getCases());
+
+  const handleSubmitToSHO = (caseId: string) => {
+    updateCase(caseId, { status: 'submitted_to_sho' });
+    addAuditLog({ action: 'SUBMIT_TO_SHO', resource: 'CASE', resourceId: caseId, details: {} });
+    toast.success('Case submitted to SHO');
+    refreshCases();
+  };
   
   // Filter cases based on user role
   const userCases = user?.role === 'police' 
@@ -56,10 +66,15 @@ const Cases: React.FC = () => {
               View
             </Link>
             {case_.status === 'preparing' && (
-              <Link to={`/${rolePath}/cases/${case_.id}?edit=true`} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded border border-gray-600 text-gray-300 hover:bg-gray-700">
-                <Edit className="h-3 w-3 mr-1" />
-                Edit
-              </Link>
+              <div className="flex space-x-2">
+                <Link to={`/${rolePath}/cases/${case_.id}?edit=true`} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded border border-gray-600 text-gray-300 hover:bg-gray-700">
+                  <Edit className="h-3 w-3 mr-1" />
+                  Edit
+                </Link>
+                <button onClick={() => handleSubmitToSHO(case_.id)} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700">
+                  Submit to SHO
+                </button>
+              </div>
             )}
           </div>
         );

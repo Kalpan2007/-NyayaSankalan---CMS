@@ -45,6 +45,12 @@ import ClerkDocuments from './pages/clerk/Documents';
 import ClerkAnalytics from './pages/clerk/Analytics';
 import ClerkGenericPage from './pages/clerk/GenericPage';
 
+const RoleRedirect: React.FC = () => {
+  const { user } = useAuth();
+  const rolePath = user?.role ? (user.role === 'court_clerk' ? 'clerk' : user.role) : 'police';
+  return <Navigate to={`/${rolePath}/dashboard`} replace />;
+};
+
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -109,8 +115,7 @@ function App() {
                 <AppLayout />
               </ProtectedRoute>
             }>
-              {/* Default to police dashboard for now */}
-              <Route index element={<Navigate to="/police/dashboard" replace />} />
+              <Route index element={<RoleRedirect />} />
 
               {/* Police routes */}
               <Route path="police">

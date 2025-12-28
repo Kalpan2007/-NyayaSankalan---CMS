@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Search, Filter, Eye, CreditCard as Edit, UserCheck } from 'lucide-react';
-import { getCases } from '../../utils/localStorage';
+import { getCases, updateCase, addAuditLog } from '../../utils/localStorage';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import StatusBadge from '../../components/UI/StatusBadge';
 import { Case } from '../../types';
 
@@ -12,7 +13,15 @@ const Cases: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   
-  const allCases = getCases();
+  const [allCases, setAllCases] = useState(() => getCases());
+  const refreshCases = () => setAllCases(getCases());
+
+  const handleApprove = (caseId: string) => {
+    updateCase(caseId, { status: 'approved_by_sho' });
+    addAuditLog({ action: 'APPROVED_BY_SHO', resource: 'CASE', resourceId: caseId, details: {} });
+    toast.success('Case approved');
+    refreshCases();
+  };
   
   // Filter cases based on user role
   const userCases = user?.role === 'police' 
@@ -74,7 +83,7 @@ const Cases: React.FC = () => {
               Review
             </Link>
             {case_.status === 'submitted_to_sho' && (
-              <button className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700">
+              <button onClick={() => handleApprove(case_.id)} className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700">
                 Approve
               </button>
             )}

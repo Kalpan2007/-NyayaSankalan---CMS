@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, FolderOpen, Clock, CheckCircle, AlertTriangle, BarChart3, Upload, Users, Shield, Bell } from 'lucide-react';
 import { getCases, getFIRs, getNotifications } from '../../utils/localStorage';
+import { Link } from 'react-router-dom';
 import StatusBadge from '../../components/UI/StatusBadge';
 
 const Dashboard: React.FC = () => {
@@ -14,14 +15,13 @@ const Dashboard: React.FC = () => {
   const getDashboardData = () => {
     switch (user?.role) {
       case 'police':
-        const policeCases = cases.filter(c => c.assignedOfficerId === user?.id);
         return {
           title: 'Police Officer Dashboard',
           stats: [
             { label: 'Active FIRs', value: firs.filter(f => f.officerId === user?.id).length, icon: FileText, color: 'blue' },
-            { label: 'My Active Cases', value: policeCases.length, icon: FolderOpen, color: 'green' },
-            { label: 'Cases in Preparation', value: policeCases.filter(c => c.status === 'preparing').length, icon: Clock, color: 'yellow' },
-            { label: 'Submitted to SHO', value: policeCases.filter(c => c.status === 'submitted_to_sho').length, icon: CheckCircle, color: 'purple' },
+            { label: 'My Active Cases', value: cases.filter(c => c.assignedOfficerId === user?.id).length, icon: FolderOpen, color: 'green' },
+            { label: 'Cases in Preparation', value: cases.filter(c => c.assignedOfficerId === user?.id && c.status === 'preparing').length, icon: Clock, color: 'yellow' },
+            { label: 'Submitted to SHO', value: cases.filter(c => c.assignedOfficerId === user?.id && c.status === 'submitted_to_sho').length, icon: CheckCircle, color: 'purple' },
           ],
           quickActions: [
             { label: 'Create FIR', icon: FileText, to: `/${rolePath}/fir-intake`, color: 'bg-blue-600' },
@@ -56,10 +56,10 @@ const Dashboard: React.FC = () => {
             { label: 'Receipts Generated', value: cases.filter(c => c.status === 'court_acknowledged').length, icon: BarChart3, color: 'purple' },
           ],
           quickActions: [
-            { label: 'Review Cases', icon: FolderOpen, to: '/cases', color: 'bg-blue-600' },
-            { label: 'Generate Receipt', icon: FileText, to: '/generate', color: 'bg-green-600' },
-            { label: 'Case Timeline', icon: Clock, to: '/timeline', color: 'bg-yellow-600' },
-            { label: 'Notifications', icon: Bell, to: '/notifications', color: 'bg-purple-600' },
+            { label: 'Review Cases', icon: FolderOpen, to: `/${rolePath}/cases`, color: 'bg-blue-600' },
+            { label: 'Generate Receipt', icon: FileText, to: `/${rolePath}/generate`, color: 'bg-green-600' },
+            { label: 'Case Timeline', icon: Clock, to: `/${rolePath}/timeline`, color: 'bg-yellow-600' },
+            { label: 'Notifications', icon: Bell, to: `/${rolePath}/notifications`, color: 'bg-purple-600' },
           ]
         };
       case 'judge':
@@ -104,7 +104,12 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="border-b border-gray-800 pb-4">
-        <h1 className="text-2xl font-bold text-white">{title}</h1>
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <span className="ml-3 inline-block px-2 py-1 bg-gray-800 text-xs rounded uppercase">
+            {user?.role ? (user.role === 'court_clerk' ? 'Clerk' : user.role?.toUpperCase()) : ''}
+          </span>
+        </div>
         <p className="text-gray-400">Welcome back, {user?.name}</p>
       </div>
 
@@ -130,15 +135,15 @@ const Dashboard: React.FC = () => {
         <h3 className="text-lg font-medium text-white mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {quickActions.map((action, index) => (
-            <a 
+            <Link 
               key={index}
-              href={action.to}
+              to={action.to}
               className={`${action.color} rounded-lg p-4 text-white text-center hover:opacity-90 transition-opacity`}
             >
               <action.icon className="h-8 w-8 mx-auto mb-2" />
               <p className="text-sm font-medium">{action.label}</p>
-            </a>
-          ))}
+            </Link>
+          ))} 
         </div>
       </div>
 
