@@ -9,8 +9,10 @@ const timelineService = new TimelineService();
  */
 export const getCaseTimeline = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
+  const organizationId = req.user!.organizationId;
+  const userRole = req.user!.role;
 
-  const timeline = await timelineService.getCaseTimeline(caseId);
+  const timeline = await timelineService.getCaseTimeline(caseId, organizationId, userRole);
 
   res.status(200).json({
     success: true,

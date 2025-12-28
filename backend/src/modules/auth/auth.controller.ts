@@ -26,7 +26,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const getCurrentUser = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!.id;
 
-  const user = await authService.getUserById(userId);
+  const user = await authService.getProfile(userId);
 
   res.status(200).json({
     success: true,

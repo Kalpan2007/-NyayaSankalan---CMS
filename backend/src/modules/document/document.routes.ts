@@ -4,34 +4,30 @@ import { createDocument, getDocuments, finalizeDocument } from './document.contr
 import { authenticate } from '../../middleware/auth.middleware';
 import { isPolice, allowAll } from '../../middleware/role.middleware';
 import { validate } from '../../middleware/validation.middleware';
+import { uploadSingle } from '../../middleware/upload.middleware';
 
 const router = Router();
 
 /**
  * POST /api/cases/:caseId/documents
- * Create document - POLICE only
+ * Create document with file upload - POLICE only
  */
 router.post(
   '/cases/:caseId/documents',
   authenticate,
   isPolice,
+  uploadSingle('file'), // File upload via multipart/form-data
   [
     body('documentType')
       .isIn([
-        'FIR',
-        'CHARGESHEET',
-        'INVESTIGATION_REPORT',
-        'EVIDENCE_REPORT',
-        'WITNESS_STATEMENT',
-        'FORENSIC_REPORT',
-        'COURT_ORDER',
-        'JUDGMENT',
-        'BAIL_DOCUMENT',
-        'OTHER',
+        'CHARGE_SHEET',
+        'EVIDENCE_LIST',
+        'WITNESS_LIST',
+        'CLOSURE_REPORT',
+        'REMAND_APPLICATION',
       ])
       .withMessage('Valid document type is required'),
-    body('title').notEmpty().withMessage('Title is required'),
-    body('filePath').notEmpty().withMessage('File path is required'),
+    body('contentJson').notEmpty().withMessage('Content JSON is required'),
     validate,
   ],
   createDocument

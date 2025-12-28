@@ -1,28 +1,24 @@
 import { prisma } from '../../prisma/client';
 import { ApiError } from '../../utils/ApiError';
-import { CaseState, CourtActionType } from '@prisma/client';
+import { CaseState, CourtSubmissionStatus, CourtActionType } from '@prisma/client';
 
 export interface SubmitToCourtRequest {
   courtId: string;
-  submissionNotes?: string;
 }
 
-export interface IntakeCaseRequest {
-  acknowledgementNotes?: string;
+export interface IntakeRequest {
+  acknowledgementNumber?: string;
 }
 
 export interface CourtActionRequest {
   actionType: CourtActionType;
+  orderFileUrl: string;
   actionDate: string;
-  description: string;
-  orderDetails?: string;
-  nextHearingDate?: string;
 }
 
 export class CourtService {
   /**
-   * POST /api/cases/:caseId/submit-to-court
-   * Submit case to court (SHO only)
+   * Submit case to court (Police)
    */
   async submitToCourt(
     caseId: string,
@@ -30,11 +26,12 @@ export class CourtService {
     userId: string,
     policeStationId: string
   ) {
-    // Verify case belongs to police station
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
       include: {
-        currentState: true,
+        fir: { select: { policeStationId: true } },
+        state: true,
+        courtSubmissions: true,
       },
     });
 
@@ -42,75 +39,84 @@ export class CourtService {
       throw ApiError.notFound('Case not found');
     }
 
-    if (caseRecord.policeStationId !== policeStationId) {
+    if (caseRecord.fir.policeStationId !== policeStationId) {
       throw ApiError.forbidden('Access denied');
     }
 
-    // Verify current state allows submission
-    const allowedStates = [CaseState.UNDER_INVESTIGATION, CaseState.INVESTIGATION_COMPLETE];
-    if (!allowedStates.includes(caseRecord.currentState!.state)) {
+    // Check case state allows submission
+    const allowedStates: CaseState[] = [
+      CaseState.CHARGE_SHEET_PREPARED,
+      CaseState.RESUBMITTED_TO_COURT,
+    ];
+
+    if (!caseRecord.state || !allowedStates.includes(caseRecord.state.currentState)) {
       throw ApiError.badRequest(
-        `Cannot submit to court from state: ${caseRecord.currentState!.state}`
+        `Cannot submit to court from state: ${caseRecord.state?.currentState}`
       );
     }
 
-    // Verify court exists
-    const court = await prisma.court.findUnique({
-      where: { id: data.courtId },
-    });
-
-    if (!court) {
-      throw ApiError.notFound('Court not found');
-    }
+    const submissionVersion = caseRecord.courtSubmissions.length + 1;
 
     const result = await prisma.$transaction(async (tx) => {
-      // Update case
-      const updated = await tx.case.update({
-        where: { id: caseId },
-        data: {
-          courtId: data.courtId,
-          submittedToCourtAt: new Date(),
-          submissionNotes: data.submissionNotes,
-        },
-      });
-
-      // Update case state
-      await tx.currentCaseState.update({
-        where: { caseId },
-        data: {
-          state: CaseState.SUBMITTED_TO_COURT,
-          updatedById: userId,
-        },
-      });
-
-      // Create audit log
-      await tx.auditLog.create({
+      const submission = await tx.courtSubmission.create({
         data: {
           caseId,
-          userId,
-          action: 'CASE_SUBMITTED_TO_COURT',
-          entityType: 'CASE',
-          entityId: caseId,
-          details: `Case submitted to court: ${court.name}`,
+          submissionVersion,
+          submittedBy: userId,
+          courtId: data.courtId,
+          status: CourtSubmissionStatus.SUBMITTED,
+        },
+        include: { court: true },
+      });
+
+      await tx.currentCaseState.update({
+        where: { caseId },
+        data: { currentState: CaseState.SUBMITTED_TO_COURT },
+      });
+
+      await tx.caseStateHistory.create({
+        data: {
+          caseId,
+          fromState: caseRecord.state!.currentState,
+          toState: CaseState.SUBMITTED_TO_COURT,
+          changedBy: userId,
+          changeReason: 'Submitted to court',
         },
       });
 
-      return updated;
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'SUBMITTED_TO_COURT',
+          entity: 'CASE',
+          entityId: caseId,
+        },
+      });
+
+      return submission;
     });
 
     return result;
   }
 
   /**
-   * POST /api/cases/:caseId/intake
-   * Intake case (COURT_CLERK only)
+   * Intake case (Court)
    */
-  async intakeCase(caseId: string, data: IntakeCaseRequest, userId: string, courtId: string) {
-    // Verify case belongs to court
+  async intakeCase(
+    caseId: string,
+    data: IntakeRequest,
+    userId: string,
+    courtId: string
+  ) {
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
       include: {
-        currentState: true,
+        state: true,
+        courtSubmissions: {
+          where: { courtId, status: CourtSubmissionStatus.SUBMITTED },
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+        },
       },
     });
 
@@ -118,54 +124,64 @@ export class CourtService {
       throw ApiError.notFound('Case not found');
     }
 
-    if (caseRecord.courtId !== courtId) {
-      throw ApiError.forbidden('Access denied');
+    if (caseRecord.courtSubmissions.length === 0) {
+      throw ApiError.badRequest('No pending submission for this court');
     }
 
-    // Verify current state
-    if (caseRecord.currentState!.state !== CaseState.SUBMITTED_TO_COURT) {
-      throw ApiError.badRequest(`Cannot intake case from state: ${caseRecord.currentState!.state}`);
+    if (caseRecord.state?.currentState !== CaseState.SUBMITTED_TO_COURT) {
+      throw ApiError.badRequest(`Cannot intake case from state: ${caseRecord.state?.currentState}`);
     }
+
+    const submission = caseRecord.courtSubmissions[0];
 
     const result = await prisma.$transaction(async (tx) => {
-      // Update case
-      const updated = await tx.case.update({
-        where: { id: caseId },
-        data: {
-          acknowledgementNotes: data.acknowledgementNotes,
-        },
+      await tx.courtSubmission.update({
+        where: { id: submission.id },
+        data: { status: CourtSubmissionStatus.ACCEPTED },
       });
 
-      // Update case state
+      if (data.acknowledgementNumber) {
+        await tx.acknowledgement.create({
+          data: {
+            submissionId: submission.id,
+            ackNumber: data.acknowledgementNumber,
+            ackTime: new Date(),
+          },
+        });
+      }
+
       await tx.currentCaseState.update({
         where: { caseId },
-        data: {
-          state: CaseState.PENDING_COURT_INTAKE,
-          updatedById: userId,
-        },
+        data: { currentState: CaseState.COURT_ACCEPTED },
       });
 
-      // Create audit log
-      await tx.auditLog.create({
+      await tx.caseStateHistory.create({
         data: {
           caseId,
-          userId,
-          action: 'CASE_INTAKE',
-          entityType: 'CASE',
-          entityId: caseId,
-          details: 'Case intake acknowledged',
+          fromState: CaseState.SUBMITTED_TO_COURT,
+          toState: CaseState.COURT_ACCEPTED,
+          changedBy: userId,
+          changeReason: 'Case accepted by court',
         },
       });
 
-      return updated;
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'COURT_INTAKE',
+          entity: 'CASE',
+          entityId: caseId,
+        },
+      });
+
+      return { caseId, status: 'accepted' };
     });
 
     return result;
   }
 
   /**
-   * POST /api/cases/:caseId/court-actions
-   * Create court action (JUDGE only)
+   * Create court action (Judge)
    */
   async createCourtAction(
     caseId: string,
@@ -173,11 +189,14 @@ export class CourtService {
     userId: string,
     courtId: string
   ) {
-    // Verify case belongs to court
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
       include: {
-        currentState: true,
+        state: true,
+        courtSubmissions: {
+          where: { courtId, status: CourtSubmissionStatus.ACCEPTED },
+          take: 1,
+        },
       },
     });
 
@@ -185,97 +204,85 @@ export class CourtService {
       throw ApiError.notFound('Case not found');
     }
 
-    if (caseRecord.courtId !== courtId) {
-      throw ApiError.forbidden('Access denied');
+    if (caseRecord.courtSubmissions.length === 0) {
+      throw ApiError.forbidden('Case is not under this court');
     }
 
-    // Create court action and update state if needed
-    const action = await prisma.$transaction(async (tx) => {
-      const newAction = await tx.courtAction.create({
+    const result = await prisma.$transaction(async (tx) => {
+      const action = await tx.courtAction.create({
         data: {
           caseId,
-          judgeId: userId,
           actionType: data.actionType,
+          orderFileUrl: data.orderFileUrl,
           actionDate: new Date(data.actionDate),
-          description: data.description,
-          orderDetails: data.orderDetails,
-          nextHearingDate: data.nextHearingDate ? new Date(data.nextHearingDate) : null,
         },
       });
 
-      // Update case state based on action type
-      let newState: CaseState | null = null;
-      if (data.actionType === CourtActionType.HEARING_SCHEDULED) {
-        newState = CaseState.UNDER_TRIAL;
+      // Update state based on action type
+      let newState: CaseState = caseRecord.state!.currentState;
+      if (data.actionType === CourtActionType.COGNIZANCE) {
+        newState = CaseState.TRIAL_ONGOING;
       } else if (data.actionType === CourtActionType.JUDGMENT) {
-        newState = CaseState.JUDGMENT_DELIVERED;
-      } else if (data.actionType === CourtActionType.CASE_DISMISSED) {
-        newState = CaseState.CLOSED;
+        newState = CaseState.JUDGMENT_RESERVED;
       }
 
-      if (newState) {
+      if (newState !== caseRecord.state!.currentState) {
         await tx.currentCaseState.update({
           where: { caseId },
+          data: { currentState: newState },
+        });
+
+        await tx.caseStateHistory.create({
           data: {
-            state: newState,
-            updatedById: userId,
+            caseId,
+            fromState: caseRecord.state!.currentState,
+            toState: newState,
+            changedBy: userId,
+            changeReason: `Court action: ${data.actionType}`,
           },
         });
       }
 
-      // Create audit log
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
           action: 'COURT_ACTION_CREATED',
-          entityType: 'COURT_ACTION',
-          entityId: newAction.id,
-          details: `Court action: ${data.actionType}`,
+          entity: 'COURT_ACTION',
+          entityId: action.id,
         },
       });
 
-      return newAction;
+      return action;
     });
 
-    return action;
+    return result;
   }
 
   /**
-   * GET /api/cases/:caseId/court-actions
-   * List court actions
+   * Get court actions
    */
   async getCourtActions(caseId: string, courtId: string) {
-    // Verify case belongs to court
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
-      select: { courtId: true },
+      include: {
+        courtSubmissions: {
+          where: { courtId },
+          take: 1,
+        },
+      },
     });
 
     if (!caseRecord) {
       throw ApiError.notFound('Case not found');
     }
 
-    if (caseRecord.courtId !== courtId) {
+    if (caseRecord.courtSubmissions.length === 0) {
       throw ApiError.forbidden('Access denied');
     }
 
-    const actions = await prisma.courtAction.findMany({
+    return prisma.courtAction.findMany({
       where: { caseId },
-      include: {
-        judge: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        actionDate: 'desc',
-      },
+      orderBy: { actionDate: 'desc' },
     });
-
-    return actions;
   }
 }

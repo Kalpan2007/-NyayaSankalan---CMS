@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getAuditLogs } from './audit.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { requireRole } from '../../middleware/role.middleware';
+import { UserRole } from '@prisma/client';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ const router = Router();
 router.get(
   '/cases/:caseId/audit-logs',
   authenticate,
-  requireRole(['SHO', 'COURT_CLERK', 'JUDGE']),
+  requireRole(UserRole.SHO, UserRole.COURT_CLERK, UserRole.JUDGE),
   getAuditLogs
 );
 

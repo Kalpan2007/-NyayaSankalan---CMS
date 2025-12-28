@@ -1,20 +1,26 @@
 import { prisma } from '../../prisma/client';
 import { ApiError } from '../../utils/ApiError';
 
+interface TimelineEvent {
+  type: string;
+  timestamp: Date;
+  title: string;
+  description?: string;
+  actor?: string;
+}
+
 export class TimelineService {
-  /**
-   * GET /api/cases/:caseId/timeline
-   * Get case timeline
-   */
-  async getCaseTimeline(caseId: string) {
-    // Verify case exists
+  async getCaseTimeline(caseId: string, organizationId: string | null, userRole: string) {
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
       include: {
-        fir: true,
-        currentState: true,
-        policeStation: true,
-        court: true,
+        fir: { select: { policeStationId: true, firNumber: true, createdAt: true } },
+        state: true,
+        courtSubmissions: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          select: { courtId: true },
+        },
       },
     });
 
@@ -22,110 +28,128 @@ export class TimelineService {
       throw ApiError.notFound('Case not found');
     }
 
-    // Gather all timeline events from different sources
-    const [investigationEvents, courtActions, documents, bailApps, auditLogs] = await Promise.all([
+    if ((userRole === 'POLICE' || userRole === 'SHO')) {
+      if (caseRecord.fir.policeStationId !== organizationId) {
+        throw ApiError.forbidden('Access denied');
+      }
+    }
+
+    if ((userRole === 'COURT_CLERK' || userRole === 'JUDGE')) {
+      const latestSubmission = caseRecord.courtSubmissions[0];
+      if (!latestSubmission || latestSubmission.courtId !== organizationId) {
+        throw ApiError.forbidden('Access denied');
+      }
+    }
+
+    // Fetch all related data
+    const [
+      investigationEvents,
+      stateHistory,
+      documents,
+      courtSubmissions,
+      courtActions,
+      bailRecords,
+    ] = await Promise.all([
       prisma.investigationEvent.findMany({
         where: { caseId },
-        select: {
-          id: true,
-          eventType: true,
-          eventDate: true,
-          description: true,
-          createdAt: true,
-        },
+        include: { user: { select: { name: true } } },
       }),
-      prisma.courtAction.findMany({
+      prisma.caseStateHistory.findMany({
         where: { caseId },
-        select: {
-          id: true,
-          actionType: true,
-          actionDate: true,
-          description: true,
-          createdAt: true,
-        },
+        include: { user: { select: { name: true } } },
       }),
       prisma.document.findMany({
         where: { caseId },
-        select: {
-          id: true,
-          documentType: true,
-          title: true,
-          createdAt: true,
-        },
+        include: { user: { select: { name: true } } },
       }),
-      prisma.bailApplication.findMany({
+      prisma.courtSubmission.findMany({
         where: { caseId },
-        select: {
-          id: true,
-          applicantName: true,
-          status: true,
-          createdAt: true,
-        },
+        include: { court: true, user: { select: { name: true } } },
       }),
-      prisma.auditLog.findMany({
-        where: {
-          caseId,
-          action: {
-            in: [
-              'FIR_REGISTERED',
-              'CASE_ASSIGNED',
-              'CASE_SUBMITTED_TO_COURT',
-              'CASE_INTAKE',
-              'INVESTIGATION_COMPLETE',
-            ],
-          },
-        },
-        select: {
-          id: true,
-          action: true,
-          details: true,
-          timestamp: true,
-        },
+      prisma.courtAction.findMany({
+        where: { caseId },
+      }),
+      prisma.bailRecord.findMany({
+        where: { caseId },
+        include: { accused: true },
       }),
     ]);
 
-    // Combine and sort all events
-    const timeline = [
-      ...investigationEvents.map((e) => ({
-        id: e.id,
-        type: 'INVESTIGATION_EVENT',
-        title: e.eventType,
-        description: e.description,
-        timestamp: e.eventDate,
-      })),
-      ...courtActions.map((c) => ({
-        id: c.id,
-        type: 'COURT_ACTION',
-        title: c.actionType,
-        description: c.description,
-        timestamp: c.actionDate,
-      })),
-      ...documents.map((d) => ({
-        id: d.id,
-        type: 'DOCUMENT',
-        title: `${d.documentType}: ${d.title}`,
-        description: 'Document created',
-        timestamp: d.createdAt,
-      })),
-      ...bailApps.map((b) => ({
-        id: b.id,
-        type: 'BAIL_APPLICATION',
-        title: `Bail Application: ${b.applicantName}`,
-        description: `Status: ${b.status}`,
-        timestamp: b.createdAt,
-      })),
-      ...auditLogs.map((a) => ({
-        id: a.id,
-        type: 'AUDIT_LOG',
-        title: a.action,
-        description: a.details,
-        timestamp: a.timestamp,
-      })),
-    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const timeline: TimelineEvent[] = [];
 
-    return {
-      case: caseRecord,
-      timeline,
-    };
+    // FIR registered
+    timeline.push({
+      type: 'FIR_REGISTERED',
+      timestamp: caseRecord.fir.createdAt,
+      title: `FIR Registered: ${caseRecord.fir.firNumber}`,
+    });
+
+    // Investigation events
+    investigationEvents.forEach((event) => {
+      timeline.push({
+        type: 'INVESTIGATION_EVENT',
+        timestamp: event.eventDate,
+        title: `Investigation: ${event.eventType}`,
+        description: event.description,
+        actor: event.user.name,
+      });
+    });
+
+    // State changes
+    stateHistory.forEach((state) => {
+      timeline.push({
+        type: 'STATE_CHANGE',
+        timestamp: state.changedAt,
+        title: `State: ${state.fromState} → ${state.toState}`,
+        description: state.changeReason,
+        actor: state.user.name,
+      });
+    });
+
+    // Documents
+    documents.forEach((doc) => {
+      timeline.push({
+        type: 'DOCUMENT',
+        timestamp: doc.createdAt,
+        title: `Document: ${doc.documentType}`,
+        description: `Version ${doc.version} - ${doc.status}`,
+        actor: doc.user.name,
+      });
+    });
+
+    // Court submissions
+    courtSubmissions.forEach((sub) => {
+      timeline.push({
+        type: 'COURT_SUBMISSION',
+        timestamp: sub.submittedAt,
+        title: `Submitted to Court: ${sub.court.name}`,
+        description: `Version ${sub.submissionVersion} - ${sub.status}`,
+        actor: sub.user.name,
+      });
+    });
+
+    // Court actions
+    courtActions.forEach((action) => {
+      timeline.push({
+        type: 'COURT_ACTION',
+        timestamp: action.actionDate,
+        title: `Court Action: ${action.actionType}`,
+      });
+    });
+
+    // Bail records
+    bailRecords.forEach((bail) => {
+      timeline.push({
+        type: 'BAIL',
+        timestamp: bail.createdAt,
+        title: `Bail ${bail.status}: ${bail.accused.name}`,
+        description: `Type: ${bail.bailType}`,
+      });
+    });
+
+    // Sort by timestamp descending
+    timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    return timeline;
   }
 }

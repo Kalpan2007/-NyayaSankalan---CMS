@@ -13,9 +13,13 @@ import auditRoutes from './modules/audit/audit.routes';
 import timelineRoutes from './modules/timeline/timeline.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { ApiError } from './utils/ApiError';
+import { validateCloudinaryConfig } from './config/cloudinary';
 
 export const createApp = (): Application => {
   const app = express();
+
+  // Validate Cloudinary configuration
+  validateCloudinaryConfig();
 
   // Security middleware
   app.use(helmet());

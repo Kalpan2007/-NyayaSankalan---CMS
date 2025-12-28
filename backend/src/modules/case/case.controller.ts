@@ -10,15 +10,20 @@ const caseService = new CaseService();
  * Get cases assigned to current user
  */
 export const getMyCases = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user!.id;
   const userRole = req.user!.role;
   const organizationId = req.user!.organizationId;
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
 
-  const cases = await caseService.getMyCases(userId, userRole, organizationId);
+  if (!organizationId) {
+    throw ApiError.badRequest('User must be associated with an organization');
+  }
+
+  const result = await caseService.getCases(organizationId, userRole, page, limit);
 
   res.status(200).json({
     success: true,
-    data: cases,
+    data: result,
   });
 });
 
@@ -29,19 +34,18 @@ export const getMyCases = asyncHandler(async (req: Request, res: Response) => {
 export const getAllCases = asyncHandler(async (req: Request, res: Response) => {
   const userRole = req.user!.role;
   const organizationId = req.user!.organizationId;
-  const organizationType = req.user!.organizationType;
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
 
-  const filters = {
-    state: req.query.state as string,
-    category: req.query.category as string,
-    assignedOfficerId: req.query.assignedOfficerId as string,
-  };
+  if (!organizationId) {
+    throw ApiError.badRequest('User must be associated with an organization');
+  }
 
-  const cases = await caseService.getAllCases(filters, userRole, organizationId, organizationType);
+  const result = await caseService.getCases(organizationId, userRole, page, limit);
 
   res.status(200).json({
     success: true,
-    data: cases,
+    data: result,
   });
 });
 
@@ -51,18 +55,10 @@ export const getAllCases = asyncHandler(async (req: Request, res: Response) => {
  */
 export const getCaseById = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
-  const userId = req.user!.id;
   const userRole = req.user!.role;
   const organizationId = req.user!.organizationId;
-  const organizationType = req.user!.organizationType;
 
-  const caseRecord = await caseService.getCaseById(
-    caseId,
-    userId,
-    userRole,
-    organizationId,
-    organizationType
-  );
+  const caseRecord = await caseService.getCaseById(caseId, userRole, organizationId);
 
   res.status(200).json({
     success: true,
@@ -76,7 +72,7 @@ export const getCaseById = asyncHandler(async (req: Request, res: Response) => {
  */
 export const assignCase = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
-  const { officerId } = req.body;
+  const { officerId, assignmentReason } = req.body;
   const userId = req.user!.id;
   const organizationId = req.user!.organizationId;
 
@@ -84,7 +80,13 @@ export const assignCase = asyncHandler(async (req: Request, res: Response) => {
     throw ApiError.badRequest('SHO must be associated with a police station');
   }
 
-  const updatedCase = await caseService.assignCase(caseId, officerId, userId, organizationId);
+  const updatedCase = await caseService.assignCase(
+    caseId,
+    officerId,
+    assignmentReason || 'Assigned by SHO',
+    userId,
+    organizationId
+  );
 
   res.status(200).json({
     success: true,

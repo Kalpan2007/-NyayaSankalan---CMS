@@ -2,48 +2,35 @@ import { prisma } from '../../prisma/client';
 
 export class OrganizationService {
   /**
-   * Get all police stations
+   * List all police stations
    */
-  async getAllPoliceStations() {
-    const policeStations = await prisma.policeStation.findMany({
+  async getPoliceStations() {
+    const stations = await prisma.policeStation.findMany({
       select: {
         id: true,
         name: true,
-        code: true,
-        jurisdiction: true,
-        address: true,
-        contactPhone: true,
-        contactEmail: true,
-        sho: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        district: true,
+        state: true,
       },
       orderBy: {
         name: 'asc',
       },
     });
 
-    return policeStations;
+    return stations;
   }
 
   /**
-   * Get all courts
+   * List all courts
    */
-  async getAllCourts() {
+  async getCourts() {
     const courts = await prisma.court.findMany({
       select: {
         id: true,
         name: true,
-        code: true,
         courtType: true,
-        jurisdiction: true,
-        address: true,
-        contactPhone: true,
-        contactEmail: true,
+        district: true,
+        state: true,
       },
       orderBy: {
         name: 'asc',

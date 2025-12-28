@@ -9,7 +9,7 @@ const organizationService = new OrganizationService();
  * Get all police stations
  */
 export const getAllPoliceStations = asyncHandler(async (req: Request, res: Response) => {
-  const policeStations = await organizationService.getAllPoliceStations();
+  const policeStations = await organizationService.getPoliceStations();
 
   res.status(200).json({
     success: true,
@@ -22,7 +22,7 @@ export const getAllPoliceStations = asyncHandler(async (req: Request, res: Respo
  * Get all courts
  */
 export const getAllCourts = asyncHandler(async (req: Request, res: Response) => {
-  const courts = await organizationService.getAllCourts();
+  const courts = await organizationService.getCourts();
 
   res.status(200).json({
     success: true,

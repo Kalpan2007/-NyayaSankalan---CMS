@@ -1,69 +1,50 @@
 import { prisma } from '../../prisma/client';
 import { ApiError } from '../../utils/ApiError';
-import { CaseState, EvidenceType, WitnessType } from '@prisma/client';
+import { InvestigationEventType, EvidenceCategory, AccusedStatus } from '@prisma/client';
 
 export interface CreateInvestigationEventRequest {
-  eventType: string;
+  eventType: InvestigationEventType;
   eventDate: string;
-  location?: string;
   description: string;
-  findings?: string;
 }
 
 export interface CreateEvidenceRequest {
-  evidenceType: EvidenceType;
-  description: string;
-  location?: string;
-  collectedDate: string;
-  collectedBy?: string;
-  storageLocation?: string;
-  chainOfCustody?: string;
+  category: EvidenceCategory;
+  fileUrl: string;
 }
 
 export interface CreateWitnessRequest {
   name: string;
-  contactInfo?: string;
-  address?: string;
-  witnessType: WitnessType;
-  statementSummary?: string;
+  statementFileUrl: string;
 }
 
 export interface CreateAccusedRequest {
   name: string;
-  age?: number;
-  gender?: string;
-  address?: string;
-  contactInfo?: string;
-  arrestDate?: string;
-  arrestLocation?: string;
-  chargesApplied?: string;
+  status?: AccusedStatus;
 }
 
 export class InvestigationService {
-  /**
-   * Verify case belongs to user's police station
-   */
   private async verifyCaseAccess(caseId: string, policeStationId: string) {
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
-      select: { policeStationId: true },
+      include: {
+        fir: {
+          select: { policeStationId: true },
+        },
+      },
     });
 
     if (!caseRecord) {
       throw ApiError.notFound('Case not found');
     }
 
-    if (caseRecord.policeStationId !== policeStationId) {
+    if (caseRecord.fir.policeStationId !== policeStationId) {
       throw ApiError.forbidden('Access denied');
     }
 
     return caseRecord;
   }
 
-  /**
-   * POST /api/cases/:caseId/investigation-events
-   * Create investigation event
-   */
   async createInvestigationEvent(
     caseId: string,
     data: CreateInvestigationEventRequest,
@@ -78,21 +59,17 @@ export class InvestigationService {
           caseId,
           eventType: data.eventType,
           eventDate: new Date(data.eventDate),
-          location: data.location,
           description: data.description,
-          findings: data.findings,
-          recordedById: userId,
+          performedBy: userId,
         },
       });
 
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
           action: 'INVESTIGATION_EVENT_CREATED',
-          entityType: 'INVESTIGATION_EVENT',
+          entity: 'INVESTIGATION_EVENT',
           entityId: newEvent.id,
-          details: `Investigation event created: ${data.eventType}`,
         },
       });
 
@@ -102,36 +79,20 @@ export class InvestigationService {
     return event;
   }
 
-  /**
-   * GET /api/cases/:caseId/investigation-events
-   * List investigation events
-   */
   async getInvestigationEvents(caseId: string, policeStationId: string) {
     await this.verifyCaseAccess(caseId, policeStationId);
 
-    const events = await prisma.investigationEvent.findMany({
+    return prisma.investigationEvent.findMany({
       where: { caseId },
       include: {
-        recordedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+        user: {
+          select: { id: true, name: true, email: true },
         },
       },
-      orderBy: {
-        eventDate: 'desc',
-      },
+      orderBy: { eventDate: 'desc' },
     });
-
-    return events;
   }
 
-  /**
-   * POST /api/cases/:caseId/evidence
-   * Create evidence
-   */
   async createEvidence(
     caseId: string,
     data: CreateEvidenceRequest,
@@ -144,25 +105,18 @@ export class InvestigationService {
       const newEvidence = await tx.evidence.create({
         data: {
           caseId,
-          evidenceType: data.evidenceType,
-          description: data.description,
-          location: data.location,
-          collectedDate: new Date(data.collectedDate),
-          collectedBy: data.collectedBy,
-          storageLocation: data.storageLocation,
-          chainOfCustody: data.chainOfCustody,
-          recordedById: userId,
+          category: data.category,
+          fileUrl: data.fileUrl,
+          uploadedBy: userId,
         },
       });
 
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
           action: 'EVIDENCE_ADDED',
-          entityType: 'EVIDENCE',
+          entity: 'EVIDENCE',
           entityId: newEvidence.id,
-          details: `Evidence added: ${data.evidenceType}`,
         },
       });
 
@@ -172,36 +126,20 @@ export class InvestigationService {
     return evidence;
   }
 
-  /**
-   * GET /api/cases/:caseId/evidence
-   * List evidence
-   */
   async getEvidence(caseId: string, policeStationId: string) {
     await this.verifyCaseAccess(caseId, policeStationId);
 
-    const evidence = await prisma.evidence.findMany({
+    return prisma.evidence.findMany({
       where: { caseId },
       include: {
-        recordedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+        user: {
+          select: { id: true, name: true, email: true },
         },
       },
-      orderBy: {
-        collectedDate: 'desc',
-      },
+      orderBy: { uploadedAt: 'desc' },
     });
-
-    return evidence;
   }
 
-  /**
-   * POST /api/cases/:caseId/witnesses
-   * Create witness
-   */
   async createWitness(
     caseId: string,
     data: CreateWitnessRequest,
@@ -215,22 +153,16 @@ export class InvestigationService {
         data: {
           caseId,
           name: data.name,
-          contactInfo: data.contactInfo,
-          address: data.address,
-          witnessType: data.witnessType,
-          statementSummary: data.statementSummary,
-          recordedById: userId,
+          statementFileUrl: data.statementFileUrl,
         },
       });
 
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
           action: 'WITNESS_ADDED',
-          entityType: 'WITNESS',
+          entity: 'WITNESS',
           entityId: newWitness.id,
-          details: `Witness added: ${data.name}`,
         },
       });
 
@@ -240,36 +172,14 @@ export class InvestigationService {
     return witness;
   }
 
-  /**
-   * GET /api/cases/:caseId/witnesses
-   * List witnesses
-   */
   async getWitnesses(caseId: string, policeStationId: string) {
     await this.verifyCaseAccess(caseId, policeStationId);
 
-    const witnesses = await prisma.witness.findMany({
+    return prisma.witness.findMany({
       where: { caseId },
-      include: {
-        recordedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
     });
-
-    return witnesses;
   }
 
-  /**
-   * POST /api/cases/:caseId/accused
-   * Create accused
-   */
   async createAccused(
     caseId: string,
     data: CreateAccusedRequest,
@@ -283,25 +193,16 @@ export class InvestigationService {
         data: {
           caseId,
           name: data.name,
-          age: data.age,
-          gender: data.gender,
-          address: data.address,
-          contactInfo: data.contactInfo,
-          arrestDate: data.arrestDate ? new Date(data.arrestDate) : null,
-          arrestLocation: data.arrestLocation,
-          chargesApplied: data.chargesApplied,
-          recordedById: userId,
+          status: data.status || AccusedStatus.ARRESTED,
         },
       });
 
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
           action: 'ACCUSED_ADDED',
-          entityType: 'ACCUSED',
+          entity: 'ACCUSED',
           entityId: newAccused.id,
-          details: `Accused added: ${data.name}`,
         },
       });
 
@@ -311,29 +212,12 @@ export class InvestigationService {
     return accused;
   }
 
-  /**
-   * GET /api/cases/:caseId/accused
-   * List accused
-   */
   async getAccused(caseId: string, policeStationId: string) {
     await this.verifyCaseAccess(caseId, policeStationId);
 
-    const accused = await prisma.accused.findMany({
+    return prisma.accused.findMany({
       where: { caseId },
-      include: {
-        recordedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      include: { bailRecords: true },
     });
-
-    return accused;
   }
 }

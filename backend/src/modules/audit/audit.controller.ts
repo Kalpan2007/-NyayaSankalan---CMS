@@ -9,8 +9,10 @@ const auditService = new AuditService();
  */
 export const getAuditLogs = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
+  const organizationId = req.user!.organizationId;
+  const userRole = req.user!.role;
 
-  const logs = await auditService.getAuditLogs(caseId);
+  const logs = await auditService.getAuditLogs(caseId, organizationId, userRole);
 
   res.status(200).json({
     success: true,

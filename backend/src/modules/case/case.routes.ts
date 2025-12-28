@@ -5,6 +5,7 @@ import { archiveCase } from './case-archive.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { isPolice, requireRole, isSHO, allowAll } from '../../middleware/role.middleware';
 import { validate } from '../../middleware/validation.middleware';
+import { UserRole } from '@prisma/client';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.get('/my', authenticate, isPolice, getMyCases);
 router.get(
   '/all',
   authenticate,
-  requireRole(['SHO', 'COURT_CLERK', 'JUDGE']),
+  requireRole(UserRole.SHO, UserRole.COURT_CLERK, UserRole.JUDGE),
   getAllCases
 );
 
@@ -50,7 +51,7 @@ router.post(
 router.post(
   '/:caseId/archive',
   authenticate,
-  requireRole(['SHO', 'JUDGE']),
+  requireRole(UserRole.SHO, UserRole.JUDGE),
   archiveCase
 );
 

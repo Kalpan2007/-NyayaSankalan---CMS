@@ -4,57 +4,99 @@ import { CaseState } from '@prisma/client';
 
 export class CaseArchiveService {
   /**
-   * POST /api/cases/:caseId/archive
-   * Archive case (SHO/JUDGE only)
+   * Archive a case
    */
-  async archiveCase(caseId: string, userId: string, userRole: string) {
+  async archiveCase(caseId: string, userId: string, policeStationId: string) {
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
-      include: {
-        currentState: true,
-      },
+      include: { fir: true, state: true },
     });
 
     if (!caseRecord) {
       throw ApiError.notFound('Case not found');
     }
 
-    // Only CLOSED or JUDGMENT_DELIVERED cases can be archived
-    const allowedStates = [CaseState.CLOSED, CaseState.JUDGMENT_DELIVERED];
-    if (!allowedStates.includes(caseRecord.currentState!.state)) {
-      throw ApiError.badRequest(
-        `Cannot archive case from state: ${caseRecord.currentState!.state}`
-      );
+    if (caseRecord.fir.policeStationId !== policeStationId) {
+      throw ApiError.forbidden('Access denied');
+    }
+
+    if (caseRecord.isArchived) {
+      throw ApiError.badRequest('Case is already archived');
+    }
+
+    // Only disposed cases can be archived
+    if (caseRecord.state?.currentState !== CaseState.DISPOSED) {
+      throw ApiError.badRequest('Only disposed cases can be archived');
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Update case state
+      await tx.case.update({
+        where: { id: caseId },
+        data: { isArchived: true },
+      });
+
       await tx.currentCaseState.update({
         where: { caseId },
-        data: {
-          state: CaseState.ARCHIVED,
-          updatedById: userId,
-        },
+        data: { currentState: CaseState.ARCHIVED },
       });
 
-      // Create audit log
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
           action: 'CASE_ARCHIVED',
-          entityType: 'CASE',
+          entity: 'CASE',
           entityId: caseId,
-          details: 'Case archived',
         },
       });
 
-      return tx.case.findUnique({
+      return { caseId, archived: true };
+    });
+
+    return result;
+  }
+
+  /**
+   * Restore archived case
+   */
+  async restoreCase(caseId: string, userId: string, policeStationId: string) {
+    const caseRecord = await prisma.case.findUnique({
+      where: { id: caseId },
+      include: { fir: true },
+    });
+
+    if (!caseRecord) {
+      throw ApiError.notFound('Case not found');
+    }
+
+    if (caseRecord.fir.policeStationId !== policeStationId) {
+      throw ApiError.forbidden('Access denied');
+    }
+
+    if (!caseRecord.isArchived) {
+      throw ApiError.badRequest('Case is not archived');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.case.update({
         where: { id: caseId },
-        include: {
-          currentState: true,
+        data: { isArchived: false },
+      });
+
+      await tx.currentCaseState.update({
+        where: { caseId },
+        data: { currentState: CaseState.DISPOSED },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'CASE_RESTORED',
+          entity: 'CASE',
+          entityId: caseId,
         },
       });
+
+      return { caseId, archived: false };
     });
 
     return result;

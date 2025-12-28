@@ -2,6 +2,12 @@ import { Request, Response } from 'express';
 import { InvestigationService } from './investigation.service';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { ApiError } from '../../utils/ApiError';
+import {
+  uploadToCloudinary,
+  CloudinaryFolder,
+  logFileUpload,
+  validatePoliceCanUpload,
+} from '../../services/fileUpload.service';
 
 const investigationService = new InvestigationService();
 
@@ -51,17 +57,44 @@ export const getInvestigationEvents = asyncHandler(async (req: Request, res: Res
 
 /**
  * POST /api/cases/:caseId/evidence
+ * Now supports file upload via multipart/form-data
  */
 export const createEvidence = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
   const userId = req.user!.id;
+  const userRole = req.user!.role;
   const organizationId = req.user!.organizationId;
 
   if (!organizationId) {
     throw ApiError.badRequest('User must be associated with a police station');
   }
 
-  const evidence = await investigationService.createEvidence(caseId, req.body, userId, organizationId);
+  // Validate police can upload (blocked after court submission)
+  await validatePoliceCanUpload(caseId, userRole);
+
+  let fileUrl: string = req.body.fileUrl || '';
+
+  // Handle file upload if present
+  if (req.file) {
+    const uploadResult = await uploadToCloudinary(req.file, {
+      folder: CloudinaryFolder.EVIDENCE,
+    });
+    fileUrl = uploadResult.secure_url;
+
+    // Log file upload
+    await logFileUpload(userId, 'EVIDENCE', caseId, req.file.originalname);
+  }
+
+  if (!fileUrl) {
+    throw ApiError.badRequest('File URL is required for evidence');
+  }
+
+  const evidenceData = {
+    category: req.body.category,
+    fileUrl,
+  };
+
+  const evidence = await investigationService.createEvidence(caseId, evidenceData, userId, organizationId);
 
   res.status(201).json({
     success: true,

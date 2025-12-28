@@ -13,6 +13,7 @@ import {
 import { authenticate } from '../../middleware/auth.middleware';
 import { isPolice } from '../../middleware/role.middleware';
 import { validate } from '../../middleware/validation.middleware';
+import { uploadSingle } from '../../middleware/upload.middleware';
 
 const router = Router();
 
@@ -35,18 +36,17 @@ router.post(
 router.get('/cases/:caseId/investigation-events', authenticate, isPolice, getInvestigationEvents);
 
 /**
- * Evidence
+ * Evidence - supports file upload
  */
 router.post(
   '/cases/:caseId/evidence',
   authenticate,
   isPolice,
+  uploadSingle('file'), // Optional file upload
   [
-    body('evidenceType')
-      .isIn(['PHYSICAL', 'DIGITAL', 'DOCUMENTARY', 'TESTIMONIAL', 'FORENSIC', 'OTHER'])
-      .withMessage('Valid evidence type is required'),
-    body('description').notEmpty().withMessage('Description is required'),
-    body('collectedDate').isISO8601().withMessage('Valid collected date is required'),
+    body('category')
+      .isIn(['PHOTO', 'REPORT', 'FORENSIC', 'STATEMENT'])
+      .withMessage('Valid evidence category is required (PHOTO, REPORT, FORENSIC, STATEMENT)'),
     validate,
   ],
   createEvidence
@@ -63,9 +63,7 @@ router.post(
   isPolice,
   [
     body('name').notEmpty().withMessage('Witness name is required'),
-    body('witnessType')
-      .isIn(['EYE_WITNESS', 'EXPERT_WITNESS', 'CHARACTER_WITNESS', 'OTHER'])
-      .withMessage('Valid witness type is required'),
+    body('statementFileUrl').notEmpty().withMessage('Statement file URL is required'),
     validate,
   ],
   createWitness
@@ -80,7 +78,14 @@ router.post(
   '/cases/:caseId/accused',
   authenticate,
   isPolice,
-  [body('name').notEmpty().withMessage('Accused name is required'), validate],
+  [
+    body('name').notEmpty().withMessage('Accused name is required'),
+    body('status')
+      .optional()
+      .isIn(['ARRESTED', 'ON_BAIL', 'ABSCONDING'])
+      .withMessage('Valid accused status is required'),
+    validate,
+  ],
   createAccused
 );
 

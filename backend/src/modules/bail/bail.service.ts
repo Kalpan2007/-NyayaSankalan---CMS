@@ -1,86 +1,157 @@
 import { prisma } from '../../prisma/client';
 import { ApiError } from '../../utils/ApiError';
-import { BailStatus } from '@prisma/client';
+import { BailType, BailStatus } from '@prisma/client';
 
-export interface CreateBailApplicationRequest {
-  applicantName: string;
-  applicantRelation: string;
-  grounds: string;
-  suretyDetails?: string;
-  amountProposed?: number;
+export interface CreateBailRequest {
+  accusedId: string;
+  bailType: BailType;
+  orderDocumentUrl: string;
+}
+
+export interface UpdateBailStatusRequest {
+  status: BailStatus;
+  orderDocumentUrl?: string;
 }
 
 export class BailService {
-  /**
-   * POST /api/cases/:caseId/bail-applications
-   * Create bail application
-   */
-  async createBailApplication(
-    caseId: string,
-    data: CreateBailApplicationRequest,
-    userId: string
-  ) {
-    // Verify case exists
+  private async verifyCaseAccess(caseId: string, organizationId: string | null, userRole: string) {
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
+      include: {
+        fir: { select: { policeStationId: true } },
+        courtSubmissions: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          select: { courtId: true },
+        },
+      },
     });
 
     if (!caseRecord) {
       throw ApiError.notFound('Case not found');
     }
 
-    const bailApp = await prisma.$transaction(async (tx) => {
-      const newBailApp = await tx.bailApplication.create({
+    if ((userRole === 'POLICE' || userRole === 'SHO')) {
+      if (caseRecord.fir.policeStationId !== organizationId) {
+        throw ApiError.forbidden('Access denied');
+      }
+    }
+
+    if ((userRole === 'COURT_CLERK' || userRole === 'JUDGE')) {
+      const latestSubmission = caseRecord.courtSubmissions[0];
+      if (!latestSubmission || latestSubmission.courtId !== organizationId) {
+        throw ApiError.forbidden('Access denied');
+      }
+    }
+
+    return caseRecord;
+  }
+
+  async createBailRecord(
+    caseId: string,
+    data: CreateBailRequest,
+    userId: string,
+    organizationId: string | null,
+    userRole: string
+  ) {
+    await this.verifyCaseAccess(caseId, organizationId, userRole);
+
+    // Verify accused belongs to case
+    const accused = await prisma.accused.findFirst({
+      where: { id: data.accusedId, caseId },
+    });
+
+    if (!accused) {
+      throw ApiError.notFound('Accused not found in this case');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const bailRecord = await tx.bailRecord.create({
         data: {
           caseId,
-          applicantName: data.applicantName,
-          applicantRelation: data.applicantRelation,
-          grounds: data.grounds,
-          suretyDetails: data.suretyDetails,
-          amountProposed: data.amountProposed,
-          status: BailStatus.PENDING,
-          submittedById: userId,
+          accusedId: data.accusedId,
+          bailType: data.bailType,
+          status: BailStatus.APPLIED,
+          orderDocumentUrl: data.orderDocumentUrl,
         },
+        include: { accused: true },
       });
 
       await tx.auditLog.create({
         data: {
-          caseId,
           userId,
-          action: 'BAIL_APPLICATION_SUBMITTED',
-          entityType: 'BAIL_APPLICATION',
-          entityId: newBailApp.id,
-          details: `Bail application submitted for ${data.applicantName}`,
+          action: 'BAIL_APPLIED',
+          entity: 'BAIL_RECORD',
+          entityId: bailRecord.id,
         },
       });
 
-      return newBailApp;
+      return bailRecord;
     });
 
-    return bailApp;
+    return result;
   }
 
-  /**
-   * GET /api/cases/:caseId/bail-applications
-   * List bail applications
-   */
-  async getBailApplications(caseId: string) {
-    const bailApps = await prisma.bailApplication.findMany({
+  async getBailRecords(caseId: string, organizationId: string | null, userRole: string) {
+    await this.verifyCaseAccess(caseId, organizationId, userRole);
+
+    return prisma.bailRecord.findMany({
       where: { caseId },
+      include: { accused: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateBailStatus(
+    bailId: string,
+    data: UpdateBailStatusRequest,
+    userId: string,
+    courtId: string
+  ) {
+    const bailRecord = await prisma.bailRecord.findUnique({
+      where: { id: bailId },
       include: {
-        submittedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+        case: {
+          include: {
+            courtSubmissions: {
+              where: { courtId },
+              take: 1,
+            },
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
     });
 
-    return bailApps;
+    if (!bailRecord) {
+      throw ApiError.notFound('Bail record not found');
+    }
+
+    if (bailRecord.case.courtSubmissions.length === 0) {
+      throw ApiError.forbidden('Access denied');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.bailRecord.update({
+        where: { id: bailId },
+        data: {
+          status: data.status,
+          orderDocumentUrl: data.orderDocumentUrl || bailRecord.orderDocumentUrl,
+        },
+        include: { accused: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: `BAIL_${data.status}`,
+          entity: 'BAIL_RECORD',
+          entityId: bailId,
+        },
+      });
+
+      return updated;
+    });
+
+    return result;
   }
 }

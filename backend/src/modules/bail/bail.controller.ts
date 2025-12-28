@@ -10,8 +10,10 @@ const bailService = new BailService();
 export const createBailApplication = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
   const userId = req.user!.id;
+  const organizationId = req.user!.organizationId;
+  const userRole = req.user!.role;
 
-  const bailApp = await bailService.createBailApplication(caseId, req.body, userId);
+  const bailApp = await bailService.createBailRecord(caseId, req.body, userId, organizationId, userRole);
 
   res.status(201).json({
     success: true,
@@ -24,8 +26,10 @@ export const createBailApplication = asyncHandler(async (req: Request, res: Resp
  */
 export const getBailApplications = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
+  const organizationId = req.user!.organizationId;
+  const userRole = req.user!.role;
 
-  const bailApps = await bailService.getBailApplications(caseId);
+  const bailApps = await bailService.getBailRecords(caseId, organizationId, userRole);
 
   res.status(200).json({
     success: true,

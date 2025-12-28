@@ -4,24 +4,26 @@ import { createFIR, getFIRById } from './fir.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { isPolice, allowAll } from '../../middleware/role.middleware';
 import { validate } from '../../middleware/validation.middleware';
+import { uploadSingle } from '../../middleware/upload.middleware';
 
 const router = Router();
 
 /**
  * POST /api/firs
- * Create new FIR - POLICE only
+ * Create new FIR with optional file upload - POLICE only
  */
 router.post(
   '/',
   authenticate,
   isPolice,
+  uploadSingle('file'), // Optional FIR document upload
   [
-    body('complainantName').notEmpty().withMessage('Complainant name is required'),
-    body('complainantContact').notEmpty().withMessage('Complainant contact is required'),
     body('incidentDate').isISO8601().withMessage('Valid incident date is required'),
-    body('incidentLocation').notEmpty().withMessage('Incident location is required'),
-    body('incidentDescription').notEmpty().withMessage('Incident description is required'),
-    body('category').isIn(['CRIMINAL', 'CIVIL', 'TRAFFIC', 'OTHER']).withMessage('Valid category is required'),
+    body('sectionsApplied').notEmpty().withMessage('Sections applied is required'),
+    body('firSource')
+      .optional()
+      .isIn(['POLICE', 'COURT_ORDER'])
+      .withMessage('Valid FIR source is required'),
     validate,
   ],
   createFIR
