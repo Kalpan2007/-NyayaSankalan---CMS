@@ -13,7 +13,11 @@ export const NotificationBell: React.FC = () => {
   const handleClick = (n: any) => {
     markAsRead(n.id);
     // Navigate based on role
-    const base = user?.role === 'JUDGE' ? '/judge' : user?.role === 'COURT_CLERK' ? '/court' : '/police';
+    let base = '/police';
+    if (user?.role === 'JUDGE') base = '/judge';
+    else if (user?.role === 'COURT_CLERK') base = '/court';
+    else if (user?.role === 'SHO') base = '/sho';
+    
     setOpen(false);
     nav(`${base}/cases/${n.relatedCaseId}`);
   };

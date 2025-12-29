@@ -14,6 +14,7 @@ const eventColor = (type: string) => {
     case 'DOCUMENT': return 'bg-gray-600';
     case 'COURT_SUBMISSION': return 'bg-indigo-600';
     case 'FIR_REGISTERED': return 'bg-green-700';
+    case 'BAIL': return 'bg-amber-600';
     default: return 'bg-gray-400';
   }
 };
@@ -21,19 +22,35 @@ const eventColor = (type: string) => {
 export const CaseTimeline: React.FC<Props> = ({ caseId }) => {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setError(null);
       try {
         const res = await timelineApi.getCaseTimeline(caseId);
         setEvents(res);
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Failed to load timeline');
       } finally { setLoading(false); }
     };
     load();
   }, [caseId]);
 
   if (loading) return <div className="p-4 text-sm text-gray-600">Loading timeline...</div>;
+  
+  if (error) return (
+    <div className="p-4 text-sm text-red-600 bg-red-50 rounded-lg">
+      {error}
+    </div>
+  );
+
+  if (events.length === 0) return (
+    <div className="p-4 text-sm text-gray-500 text-center">
+      No timeline events recorded yet.
+    </div>
+  );
 
   return (
     <div className="p-4">

@@ -66,13 +66,13 @@ export const SearchBar: React.FC = () => {
     // Navigate based on user role
     let path = '';
     if (user?.role === 'POLICE') {
-      path = `/police/case/${result.caseId}`;
+      path = `/police/cases/${result.caseId}`;
     } else if (user?.role === 'SHO') {
-      path = `/sho/case/${result.caseId}`;
+      path = `/sho/cases/${result.caseId}`;
     } else if (user?.role === 'COURT_CLERK') {
-      path = `/court/case/${result.caseId}`;
+      path = `/court/cases/${result.caseId}`;
     } else if (user?.role === 'JUDGE') {
-      path = `/judge/case/${result.caseId}`;
+      path = `/judge/cases/${result.caseId}`;
     }
     
     if (path) {
@@ -178,7 +178,7 @@ export const SearchBar: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <div className="ml-2 flex-shrink-0">
+                  <div className="ml-2 shrink-0">
                     <svg
                       className="h-4 w-4 text-gray-400"
                       fill="none"

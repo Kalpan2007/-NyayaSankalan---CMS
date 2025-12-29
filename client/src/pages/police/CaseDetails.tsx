@@ -185,7 +185,7 @@ export const PoliceCaseDetails: React.FC = () => {
     try {
       const res = await documentRequestsApi.getByCase(id!);
       setCaseRequests(res);
-    } catch (err: any) {
+    } catch (_err) {
       // Ignore silently - show empty list
     } finally {
       setRequestsLoading(false);
@@ -202,7 +202,7 @@ export const PoliceCaseDetails: React.FC = () => {
     try {
       const res = await (await import('../../api/caseReopen.api')).caseReopenApi.getMyRequests();
       setMyReopenRequests(res.filter((r: any) => r.caseId === id));
-    } catch (err) {
+    } catch (_err) {
       // ignore
     }
   };
