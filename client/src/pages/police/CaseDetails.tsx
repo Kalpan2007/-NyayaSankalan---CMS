@@ -11,10 +11,11 @@ import { Select } from '../../components/ui/Select';
 import { Loader } from '../../components/common/Loader';
 import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { caseApi, investigationApi } from '../../api';
+import { documentRequestsApi } from '../../api/documentRequests.api';
 import { useAuth } from '../../context/AuthContext';
-import type { Case } from '../../types/api.types';
+import type { Case, DocumentRequest } from '../../types/api.types';
 import { CaseState, EvidenceCategory, AccusedStatus } from '../../types/api.types';
-import { getCaseStateBadgeVariant, getCaseStateLabel, isLockedForPolice } from '../../utils/caseState';
+import { getCaseStateBadgeVariant, getCaseStateLabel } from '../../utils/caseState';
 
 export const PoliceCaseDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,10 @@ export const PoliceCaseDetails: React.FC = () => {
   const [showWitnessForm, setShowWitnessForm] = useState(false);
   const [showAccusedForm, setShowAccusedForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Document requests for this case
+  const [caseRequests, setCaseRequests] = useState<DocumentRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
 
   // Evidence form
   const [evidenceCategory, setEvidenceCategory] = useState<EvidenceCategory>(EvidenceCategory.PHOTO);
@@ -47,6 +52,7 @@ export const PoliceCaseDetails: React.FC = () => {
   useEffect(() => {
     if (id) {
       fetchCaseDetails();
+      loadCaseRequests();
     }
   }, [id]);
 
@@ -164,10 +170,23 @@ export const PoliceCaseDetails: React.FC = () => {
       await caseApi.completeInvestigation(id!);
       toast.success('Investigation marked as complete! SHO can now submit this case to court.');
       fetchCaseDetails();
+      await loadCaseRequests();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to complete investigation');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const loadCaseRequests = async () => {
+    setRequestsLoading(true);
+    try {
+      const res = await documentRequestsApi.getByCase(id!);
+      setCaseRequests(res);
+    } catch (err: any) {
+      // Ignore silently - show empty list
+    } finally {
+      setRequestsLoading(false);
     }
   };
 
@@ -297,6 +316,13 @@ export const PoliceCaseDetails: React.FC = () => {
               >
                 + Add Accused
               </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => window.location.assign(`/police/request-documents?caseId=${id}`)}
+              >
+                Request Document for this Case
+              </Button>
             </div>
 
             {/* Mark Investigation Complete */}
@@ -364,95 +390,98 @@ export const PoliceCaseDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Witness Form */}
-            {showWitnessForm && (
-              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h4 className="font-semibold mb-3">Add Witness</h4>
-                <div className="space-y-3">
-                  <Input
-                    label="Name"
-                    placeholder="Witness full name"
-                    value={witnessName}
-                    onChange={(e) => setWitnessName(e.target.value)}
-                    required
-                  />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Input
-                      label="Contact (Optional)"
-                      placeholder="Phone number"
-                      value={witnessContact}
-                      onChange={(e) => setWitnessContact(e.target.value)}
-                    />
-                    <Input
-                      label="Address (Optional)"
-                      placeholder="Full address"
-                      value={witnessAddress}
-                      onChange={(e) => setWitnessAddress(e.target.value)}
-                    />
-                  </div>
-                  <Textarea
-                    label="Statement"
-                    placeholder="Witness statement..."
-                    value={witnessStatement}
-                    onChange={(e) => setWitnessStatement(e.target.value)}
-                    rows={4}
-                    required
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      variant="primary"
-                      onClick={handleAddWitness}
-                      isLoading={isSubmitting}
-                    >
-                      Save Witness
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowWitnessForm(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+        {showWitnessForm && (
+          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <h4 className="font-semibold mb-3">Add Witness</h4>
+            <div className="space-y-3">
+              <Input
+                label="Name"
+                placeholder="Witness full name"
+                value={witnessName}
+                onChange={(e) => setWitnessName(e.target.value)}
+                required
+              />
 
-            {/* Accused Form */}
-            {showAccusedForm && (
-              <div className="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <h4 className="font-semibold mb-3">Add Accused</h4>
-                <div className="space-y-3">
-                  <Input
-                    label="Name"
-                    placeholder="Accused full name"
-                    value={accusedName}
-                    onChange={(e) => setAccusedName(e.target.value)}
-                    required
-                  />
-                  <Input
-                    label="Address (Optional)"
-                    placeholder="Last known address"
-                    value={accusedAddress}
-                    onChange={(e) => setAccusedAddress(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      variant="primary"
-                      onClick={handleAddAccused}
-                      isLoading={isSubmitting}
-                    >
-                      Save Accused
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowAccusedForm(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Input
+                  label="Contact (Optional)"
+                  placeholder="Phone number"
+                  value={witnessContact}
+                  onChange={(e) => setWitnessContact(e.target.value)}
+                />
+                <Input
+                  label="Address (Optional)"
+                  placeholder="Full address"
+                  value={witnessAddress}
+                  onChange={(e) => setWitnessAddress(e.target.value)}
+                />
               </div>
-            )}
+
+              <Textarea
+                label="Statement"
+                placeholder="Witness statement..."
+                value={witnessStatement}
+                onChange={(e) => setWitnessStatement(e.target.value)}
+                rows={4}
+                required
+              />
+
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  onClick={handleAddWitness}
+                  isLoading={isSubmitting}
+                >
+                  Save Witness
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowWitnessForm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAccusedForm && (
+          <div className="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
+            <h4 className="font-semibold mb-3">Add Accused</h4>
+            <div className="space-y-3">
+              <Input
+                label="Name"
+                placeholder="Accused full name"
+                value={accusedName}
+                onChange={(e) => setAccusedName(e.target.value)}
+                required
+              />
+              <Input
+                label="Address (Optional)"
+                placeholder="Last known address"
+                value={accusedAddress}
+                onChange={(e) => setAccusedAddress(e.target.value)}
+              />
+
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  onClick={handleAddAccused}
+                  isLoading={isSubmitting}
+                >
+                  Save Accused
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAccusedForm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
           </Card>
         )}
 
@@ -549,8 +578,7 @@ export const PoliceCaseDetails: React.FC = () => {
                   <Badge
                     variant={
                       a.status === 'ARRESTED' ? 'danger' :
-                      a.status === 'ON_BAIL' ? 'warning' :
-                      'default'
+                      a.status === 'ON_BAIL' ? 'warning' : 'default'
                     }
                   >
                     {a.status}
@@ -560,6 +588,29 @@ export const PoliceCaseDetails: React.FC = () => {
             </div>
           </Card>
         )}
+
+        {/* Document Requests for this case */}
+        <Card title="Document Requests">
+          {requestsLoading && <div>Loading requests...</div>}
+          {!requestsLoading && caseRequests.length === 0 && <div>No document requests for this case</div>}
+          <div className="space-y-2">
+            {caseRequests.map((r) => (
+              <div key={r.id} className="flex justify-between items-center py-2 border-b">
+                <div>
+                  <div className="font-medium">{r.documentType}</div>
+                  <div className="text-sm text-gray-600">{r.requestReason} — Requested by {r.requester?.name}</div>
+                  {r.remarks && <div className="text-sm text-gray-500">Remarks: {r.remarks}</div>}
+                </div>
+                <div className="text-sm">
+                  <span className="px-2 py-1 bg-gray-100 rounded">{r.status}</span>
+                  {r.status === 'ISSUED' && (
+                    <a href={r.issuedFileUrl || undefined} className="ml-3 text-blue-600" target="_blank" rel="noreferrer">Download</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
 
         {/* Back Button */}
         <div className="flex gap-4">

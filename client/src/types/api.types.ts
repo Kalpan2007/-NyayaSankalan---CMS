@@ -76,6 +76,21 @@ export enum DocumentStatus {
   LOCKED = 'LOCKED',
 }
 
+export enum DocumentRequestType {
+  ARREST_WARRANT = 'ARREST_WARRANT',
+  SEARCH_WARRANT = 'SEARCH_WARRANT',
+  REMAND_ORDER = 'REMAND_ORDER',
+  CHARGE_SHEET_COPY = 'CHARGE_SHEET_COPY',
+  OTHER = 'OTHER',
+}
+
+export enum DocumentRequestStatus {
+  REQUESTED = 'REQUESTED',
+  SHO_APPROVED = 'SHO_APPROVED',
+  ISSUED = 'ISSUED',
+  REJECTED = 'REJECTED',
+}
+
 export enum InvestigationEventType {
   SEARCH = 'SEARCH',
   SEIZURE = 'SEIZURE',
@@ -280,6 +295,24 @@ export interface Document {
   finalizedBy: string | null;
   finalizedByUser?: User;
   finalizedAt: string | null;
+}
+
+export interface DocumentRequest {
+  id: string;
+  caseId: string;
+  requestedBy: string;
+  approvedBy?: string | null;
+  issuedBy?: string | null;
+  documentType: DocumentRequestType;
+  status: DocumentRequestStatus;
+  requestReason: string;
+  issuedFileUrl?: string | null;
+  remarks?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requester?: User;
+  approver?: User | null;
+  issuer?: User | null;
 }
 
 // ====================================================================

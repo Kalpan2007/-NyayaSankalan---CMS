@@ -9,7 +9,7 @@ import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { EmptyState } from '../../components/common/EmptyState';
 import { caseApi } from '../../api';
 import type { Case } from '../../types/api.types';
-import { CaseState } from '../../types/api.types';
+
 import { getCaseStateBadgeVariant, getCaseStateLabel } from '../../utils/caseState';
 
 export const PoliceMyCases: React.FC = () => {

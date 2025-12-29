@@ -284,6 +284,76 @@ Authorization: Bearer <token>
 
 **Note:** Documents are locked after case submission to court
 
+---
+
+### Judicial Document Requests (NEW)
+
+This feature enables Police to request urgent judicial documents during the investigation phase. The flow is Police -> SHO -> Court Clerk/Judge -> Police. This workflow is independent of case submission to court.
+
+#### 31. Create Document Request (POLICE)
+```http
+POST /api/document-requests
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "caseId": "uuid",
+  "documentType": "ARREST_WARRANT",
+  "requestReason": "Reason for request"
+}
+```
+
+#### 32. Get My Requests (POLICE)
+```http
+GET /api/document-requests/my
+Authorization: Bearer <token>
+```
+
+#### 33. Get Pending Requests (SHO)
+```http
+GET /api/document-requests/pending
+Authorization: Bearer <token>
+```
+
+#### 34. Approve Request (SHO)
+```http
+POST /api/document-requests/:id/approve
+Authorization: Bearer <token>
+```
+
+#### 35. Reject Request (SHO or Court)
+```http
+POST /api/document-requests/:id/reject
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "reason": "Rejection reason" }
+```
+
+#### 36. Get Approved Requests (Court)
+```http
+GET /api/document-requests/approved
+Authorization: Bearer <token>
+```
+
+#### 37. Issue Document (Court Clerk / Judge)
+```http
+POST /api/document-requests/:id/issue
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+- file: PDF (signed document)
+- remarks: optional
+```
+
+Notes:
+- Document types: ARREST_WARRANT, SEARCH_WARRANT, REMAND_ORDER, CHARGE_SHEET_COPY, OTHER
+- Status flow: REQUESTED → SHO_APPROVED → ISSUED (optional REJECTED)
+- All actions are logged in audit_logs
+- Police can create requests only if case is assigned to them
+- SHO can approve only for cases in their police station
+- Court can issue only after SHO approval
+
 ### Court Operations (6 APIs)
 
 #### 24. Submit Case to Court (SHO only)

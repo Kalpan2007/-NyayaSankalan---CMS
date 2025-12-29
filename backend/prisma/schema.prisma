@@ -84,6 +84,21 @@ enum DocumentStatus {
   LOCKED
 }
 
+enum DocumentRequestType {
+  ARREST_WARRANT
+  SEARCH_WARRANT
+  REMAND_ORDER
+  CHARGE_SHEET_COPY
+  OTHER
+}
+
+enum DocumentRequestStatus {
+  REQUESTED
+  SHO_APPROVED
+  ISSUED
+  REJECTED
+}
+
 enum BailType {
   POLICE
   ANTICIPATORY
@@ -144,6 +159,9 @@ model User {
   investigationEvents    InvestigationEvent[]   @relation("PerformedBy")
   evidenceUploads        Evidence[]             @relation("UploadedBy")
   documentsCreated       Document[]             @relation("CreatedBy")
+  documentRequestsCreated DocumentRequest[]     @relation("DocumentRequestsCreatedBy")
+  documentRequestsApproved DocumentRequest[]    @relation("DocumentRequestsApprovedBy")
+  documentRequestsIssued DocumentRequest[]      @relation("DocumentRequestsIssuedBy")
   courtSubmissions       CourtSubmission[]      @relation("SubmittedBy")
   auditLogs              AuditLog[]
   accessLogs             AccessLog[]
@@ -215,6 +233,7 @@ model Case {
   evidence             Evidence[]
   witnesses            Witness[]
   documents            Document[]
+  documentRequests      DocumentRequest[]
   documentChecklists   DocumentChecklist[]
   bailRecords          BailRecord[]
   courtSubmissions     CourtSubmission[]
@@ -432,6 +451,33 @@ model CourtAction {
 
   @@index([caseId])
   @@map("court_actions")
+}
+
+model DocumentRequest {
+  id            String                 @id @default(uuid()) @db.Uuid
+  caseId        String                 @db.Uuid
+  requestedBy   String                 @db.Uuid
+  approvedBy    String?                @db.Uuid
+  issuedBy      String?                @db.Uuid
+  documentType  DocumentRequestType
+  status        DocumentRequestStatus
+  requestReason String
+  issuedFileUrl String?
+  remarks       String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  // Relations
+  case     Case  @relation(fields: [caseId], references: [id])
+  requester User @relation("DocumentRequestsCreatedBy", fields: [requestedBy], references: [id])
+  approver  User? @relation("DocumentRequestsApprovedBy", fields: [approvedBy], references: [id])
+  issuer    User? @relation("DocumentRequestsIssuedBy", fields: [issuedBy], references: [id])
+
+  @@index([caseId])
+  @@index([requestedBy])
+  @@index([approvedBy])
+  @@index([issuedBy])
+  @@map("document_requests")
 }
 
 model AuditLog {

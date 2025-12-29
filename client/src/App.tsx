@@ -13,14 +13,17 @@ import { PoliceDashboard } from './pages/police/Dashboard';
 import { CreateFIR } from './pages/police/CreateFIR';
 import { PoliceMyCases } from './pages/police/MyCases';
 import { PoliceCaseDetails } from './pages/police/CaseDetails';
+import { RequestDocuments } from './pages/police/RequestDocuments';
 
 import { SHODashboard } from './pages/sho/Dashboard';
 import { SHOAllCases } from './pages/sho/AllCases';
 import { SHOCaseDetails } from './pages/sho/CaseDetails';
+import { DocumentRequests } from './pages/sho/DocumentRequests';
 
 import { CourtDashboard } from './pages/court/Dashboard';
 import { IncomingCases } from './pages/court/IncomingCases';
 import { CourtCaseDetails } from './pages/court/CaseDetails';
+import { ApprovedRequests } from './pages/court/ApprovedRequests';
 
 import { JudgeDashboard } from './pages/judge/Dashboard';
 import { JudgeCases } from './pages/judge/Cases';
@@ -45,6 +48,7 @@ function App() {
                     <Route path="dashboard" element={<PoliceDashboard />} />
                     <Route path="create-fir" element={<CreateFIR />} />
                     <Route path="my-cases" element={<PoliceMyCases />} />
+                    <Route path="request-documents" element={<RequestDocuments />} />
                     <Route path="cases/:id" element={<PoliceCaseDetails />} />
                   </Routes>
                 </Layout>
@@ -61,6 +65,7 @@ function App() {
                   <Routes>
                     <Route path="dashboard" element={<SHODashboard />} />
                     <Route path="all-cases" element={<SHOAllCases />} />
+                    <Route path="document-requests" element={<DocumentRequests />} />
                     <Route path="cases/:id" element={<SHOCaseDetails />} />
                   </Routes>
                 </Layout>
@@ -77,6 +82,7 @@ function App() {
                   <Routes>
                     <Route path="dashboard" element={<CourtDashboard />} />
                     <Route path="incoming-cases" element={<IncomingCases />} />
+                    <Route path="document-requests" element={<ApprovedRequests />} />
                     <Route path="cases/:id" element={<CourtCaseDetails />} />
                   </Routes>
                 </Layout>
