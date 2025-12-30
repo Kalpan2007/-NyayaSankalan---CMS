@@ -42,12 +42,18 @@ export const createFIR = asyncHandler(async (req: Request, res: Response) => {
 
   let firDocumentUrl: string = req.body.firDocumentUrl || '';
 
-  // Handle file upload if present
+  // Handle file upload if present (defensive: don't block FIR creation on upload failure)
   if (req.file) {
-    const uploadResult = await uploadToCloudinary(req.file, {
-      folder: CloudinaryFolder.FIRS,
-    });
-    firDocumentUrl = uploadResult.secure_url;
+    try {
+      const uploadResult = await uploadToCloudinary(req.file, {
+        folder: CloudinaryFolder.FIRS,
+      });
+      firDocumentUrl = uploadResult.secure_url;
+    } catch (err) {
+      console.error('Cloudinary upload failed (non-blocking):', err);
+      // FIR creation continues with empty document URL
+      // User can upload document later via edit functionality
+    }
   }
 
   const firData = {
@@ -57,9 +63,13 @@ export const createFIR = asyncHandler(async (req: Request, res: Response) => {
 
   const fir = await firService.createFIR(firData, userId, organizationId);
 
-  // Log file upload
-  if (req.file) {
-    await logFileUpload(userId, 'FIR', fir.id, req.file.originalname);
+  // Log file upload (only if upload succeeded)
+  if (req.file && firDocumentUrl) {
+    try {
+      await logFileUpload(userId, 'FIR', fir.id, req.file.originalname);
+    } catch (err) {
+      console.error('File upload logging failed (non-blocking):', err);
+    }
   }
 
   // Best-effort: write FIR extraction to ai-poc storage and index it for demo search
