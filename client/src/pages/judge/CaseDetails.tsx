@@ -15,6 +15,7 @@ import { CaseTimeline } from '../../components/case/CaseTimeline';
 import { ClosureReportButton } from '../../components/case/ClosureReportButton';
 import { caseApi, courtApi } from '../../api';
 import apiClient from '../../api/axios';
+import jsPDF from 'jspdf';
 import type { Case, CourtAction } from '../../types/api.types';
 import { CaseState, CourtActionType } from '../../types/api.types';
 import { getCaseStateBadgeVariant, getCaseStateLabel, isInCourt } from '../../utils/caseState';
@@ -174,13 +175,50 @@ export const JudgeCaseDetails: React.FC = () => {
 
   const handleDownloadDraft = () => {
     if (!draftText) return;
-    const blob = new Blob([draftText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `hearing-order-${caseData?.fir?.firNumber || caseData?.id}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const maxWidth = pageWidth - 2 * margin;
+      const lineHeight = 7;
+      
+      // Title
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Hearing Order', pageWidth / 2, 20, { align: 'center' });
+      
+      // Case info
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      let yPos = 35;
+      if (caseData?.fir?.firNumber) {
+        doc.text(`FIR Number: ${caseData.fir.firNumber}`, margin, yPos);
+        yPos += lineHeight;
+      }
+      doc.text(`Case ID: ${caseData?.id}`, margin, yPos);
+      yPos += lineHeight + 5;
+      
+      // Draft content
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(draftText, maxWidth);
+      
+      lines.forEach((line: string) => {
+        if (yPos + lineHeight > pageHeight - margin) {
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.text(line, margin, yPos);
+        yPos += lineHeight;
+      });
+      
+      doc.save(`hearing-order-${caseData?.fir?.firNumber || caseData?.id}.pdf`);
+      toast.success('Draft downloaded as PDF');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast.error('Failed to generate PDF');
+    }
   };
 
   const getActionBadgeVariant = (actionType: string) => {
