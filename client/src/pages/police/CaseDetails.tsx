@@ -13,11 +13,13 @@ import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { caseApi, investigationApi } from '../../api';
 import { documentRequestsApi } from '../../api/documentRequests.api';
 import { useAuth } from '../../context/AuthContext';
+import apiClient from '../../api/axios';
 import type { Case, DocumentRequest } from '../../types/api.types';
 import { CaseState, EvidenceCategory, AccusedStatus } from '../../types/api.types';
 import { getCaseStateBadgeVariant, getCaseStateLabel } from '../../utils/caseState';
 import { CaseTimeline } from '../../components/case/CaseTimeline';
 import { ClosureReportButton } from '../../components/case/ClosureReportButton';
+import { GenerateDraftModal } from '../../components/ai/GenerateDraftModal';
 
 export const PoliceCaseDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +33,8 @@ export const PoliceCaseDetails: React.FC = () => {
   const [showWitnessForm, setShowWitnessForm] = useState(false);
   const [showAccusedForm, setShowAccusedForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [draftForDocument, setDraftForDocument] = useState<{ draft: string; documentType: string } | null>(null);
 
   // Document requests for this case
   const [caseRequests, setCaseRequests] = useState<DocumentRequest[]>([]);
@@ -40,6 +44,9 @@ export const PoliceCaseDetails: React.FC = () => {
   const [evidenceCategory, setEvidenceCategory] = useState<EvidenceCategory>(EvidenceCategory.PHOTO);
   const [evidenceDescription, setEvidenceDescription] = useState('');
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [extractingEvidence, setExtractingEvidence] = useState(false);
+  const [evidenceExtractedText, setEvidenceExtractedText] = useState('');
+  const [evidenceExtractError, setEvidenceExtractError] = useState<string | null>(null);
 
   // Witness form
   const [witnessName, setWitnessName] = useState('');
@@ -101,11 +108,49 @@ export const PoliceCaseDetails: React.FC = () => {
       setEvidenceCategory(EvidenceCategory.PHOTO);
       setEvidenceDescription('');
       setEvidenceFile(null);
+      setEvidenceExtractedText('');
+      setEvidenceExtractError(null);
       fetchCaseDetails();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to add evidence');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleExtractEvidenceText = async () => {
+    if (!evidenceFile) {
+      toast.error('Please select a file first');
+      return;
+    }
+
+    setExtractingEvidence(true);
+    setEvidenceExtractError(null);
+    setEvidenceExtractedText('');
+    try {
+      const formData = new FormData();
+      formData.append('file', evidenceFile);
+
+      const response = await apiClient.post('/ai/ocr-extract', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      console.log('[Evidence OCR Extract Response]:', response.data);
+      
+      const text = response.data?.extractedText || response.data?.data?.extractedText || response.data?.data || '';
+      setEvidenceExtractedText(text);
+      if (!text) {
+        toast.error('No text extracted');
+      } else {
+        toast.success('Text extracted (demo)');
+      }
+    } catch (err: any) {
+      console.error('[Evidence OCR Extract Error]:', err.response?.data || err.message);
+      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Extraction failed';
+      setEvidenceExtractError(message);
+      toast.error(message);
+    } finally {
+      setExtractingEvidence(false);
     }
   };
 
@@ -415,6 +460,13 @@ export const PoliceCaseDetails: React.FC = () => {
               >
                 Request Document for this Case
               </Button>
+
+              <Button
+                variant="ghost"
+                onClick={() => setShowDraftModal(true)}
+              >
+                Generate Case Document Draft
+              </Button>
             </div>
 
             {/* Mark Investigation Complete */}
@@ -463,6 +515,38 @@ export const PoliceCaseDetails: React.FC = () => {
                     type="file"
                     onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
                   />
+                  <div className="rounded-lg border border-dashed border-blue-200 bg-blue-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-blue-800">Extract Document Text</p>
+                        <p className="text-xs text-blue-700">Preview-only. Does not save to database.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleExtractEvidenceText}
+                        isLoading={extractingEvidence}
+                        disabled={!evidenceFile}
+                      >
+                        Extract Document Text
+                      </Button>
+                    </div>
+
+                    {evidenceExtractError && (
+                      <p className="mt-2 text-sm text-red-600">{evidenceExtractError}</p>
+                    )}
+
+                    <div className="mt-3">
+                      <Textarea
+                        label="Extracted Text"
+                        value={evidenceExtractedText}
+                        onChange={(e) => setEvidenceExtractedText(e.target.value)}
+                        rows={4}
+                        placeholder="Extracted text will appear here"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Read-only — text is not stored.</p>
+                    </div>
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="primary"
@@ -535,6 +619,16 @@ export const PoliceCaseDetails: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {showDraftModal && id && (
+          <GenerateDraftModal
+            caseId={id}
+            onClose={() => setShowDraftModal(false)}
+            onUseDraft={(draft, documentType) => {
+              setDraftForDocument({ draft, documentType });
+            }}
+          />
         )}
 
         {showAccusedForm && (
@@ -704,6 +798,51 @@ export const PoliceCaseDetails: React.FC = () => {
           </div>
         </Card>
 
+        {/* AI Draft → Document Creation */}
+        {draftForDocument && (
+          <Card title="Create Document from AI Draft" className="border-blue-300 bg-blue-50">
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">Review and edit the AI-generated draft, then save as a document:</p>
+              <Textarea
+                label="Document Content"
+                value={draftForDocument.draft}
+                onChange={(e) => setDraftForDocument({ ...draftForDocument, draft: e.target.value })}
+                rows={12}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    try {
+                      setIsSubmitting(true);
+                      await investigationApi.createEvidence(id!, {
+                        category: EvidenceCategory.REPORT,
+                        description: `AI Generated ${draftForDocument.documentType}`,
+                        file: undefined,
+                      });
+                      toast.success('Document created from draft');
+                      setDraftForDocument(null);
+                      fetchCaseDetails();
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to create document');
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  isLoading={isSubmitting}
+                >
+                  Save as Document
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setDraftForDocument(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
         {/* Back Button */}
         <div className="flex gap-4">
           <Link to="/police/my-cases">

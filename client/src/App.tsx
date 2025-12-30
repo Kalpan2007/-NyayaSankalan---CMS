@@ -7,6 +7,9 @@ import { Layout } from './components/layout/Layout';
 import { UserRole } from './types/api.types';
 import { Notifications } from './pages/Notifications';
 
+// AI demo page (preview only)
+import AIDemoPage from './pages/ai/Demo';
+
 // Auth Pages
 import { Login } from './pages/auth/Login';
 
@@ -130,6 +133,9 @@ function App() {
 
           {/* Notifications page */}
           <Route path="/notifications" element={<ProtectedRoute allowedRoles={[UserRole.POLICE, UserRole.SHO, UserRole.COURT_CLERK, UserRole.JUDGE]}><Layout><Notifications /></Layout></ProtectedRoute>} />
+
+          {/* AI demo (preview-only) */}
+          <Route path="/ai-demo" element={<ProtectedRoute allowedRoles={[UserRole.POLICE, UserRole.SHO, UserRole.COURT_CLERK, UserRole.JUDGE]}><Layout><AIDemoPage /></Layout></ProtectedRoute>} />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/login" replace />} />

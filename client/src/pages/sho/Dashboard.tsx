@@ -10,6 +10,7 @@ import { caseApi } from '../../api';
 import type { Case } from '../../types/api.types';
 import { CaseState } from '../../types/api.types';
 import { getCaseStateBadgeVariant, getCaseStateLabel } from '../../utils/caseState';
+import { AISearchWidget } from '../../components/ai/AISearchWidget';
 
 export const SHODashboard: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
@@ -189,6 +190,10 @@ export const SHODashboard: React.FC = () => {
           </div>
         )}
       </Card>
+
+      <div className="mt-6">
+        <AISearchWidget />
+      </div>
     </>
   );
 };

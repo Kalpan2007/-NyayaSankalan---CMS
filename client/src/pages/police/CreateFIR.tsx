@@ -8,11 +8,15 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Button } from '../../components/ui/Button';
 import { FileUpload } from '../../components/common/FileUpload';
 import { firApi } from '../../api';
+import apiClient from '../../api/axios';
 
 export const CreateFIR: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [firDocument, setFirDocument] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractedText, setExtractedText] = useState('');
+  const [extractError, setExtractError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     incidentDate: '',
     sectionsApplied: '',
@@ -44,6 +48,42 @@ export const CreateFIR: React.FC = () => {
       toast.error(error.message || 'Failed to create FIR');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleExtractText = async () => {
+    if (!firDocument) {
+      toast.error('Please select a FIR document first');
+      return;
+    }
+
+    setExtracting(true);
+    setExtractError(null);
+    setExtractedText('');
+    try {
+      const formData = new FormData();
+      formData.append('file', firDocument);
+
+      const response = await apiClient.post('/ai/ocr-extract', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      console.log('[OCR Extract Response]:', response.data);
+      
+      const text = response.data?.extractedText || response.data?.data?.extractedText || response.data?.data || '';
+      setExtractedText(text);
+      if (!text) {
+        toast.error('No text extracted (check browser console for response structure)');
+      } else {
+        toast.success('Text extracted (demo)');
+      }
+    } catch (err: any) {
+      console.error('[OCR Extract Error]:', err.response?.data || err.message);
+      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Extraction failed';
+      setExtractError(message);
+      toast.error(message);
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -84,6 +124,39 @@ export const CreateFIR: React.FC = () => {
             currentFile={firDocument}
             maxSize={20}
           />
+
+          <div className="rounded-lg border border-dashed border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-blue-800">Extract Document Text</p>
+                <p className="text-xs text-blue-700">Preview-only. Does not save to database.</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleExtractText}
+                isLoading={extracting}
+                disabled={!firDocument}
+              >
+                Extract Document Text
+              </Button>
+            </div>
+
+            {extractError && (
+              <p className="mt-2 text-sm text-red-600">{extractError}</p>
+            )}
+
+            <div className="mt-3">
+              <Textarea
+                label="Extracted Text"
+                value={extractedText}
+                onChange={(e) => setExtractedText(e.target.value)}
+                rows={6}
+                placeholder="Extracted text will appear here"
+              />
+              <p className="text-xs text-gray-500 mt-1">Read-only — text is not stored.</p>
+            </div>
+          </div>
 
           <div className="flex space-x-4">
             <Button type="submit" variant="primary" isLoading={isLoading}>

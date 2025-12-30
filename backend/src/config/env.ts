@@ -12,6 +12,7 @@ interface Config {
   jwtExpiry: string;
   databaseUrl: string;
   nodeEnv: string;
+  aiPocUrl: string;
   cloudinary: CloudinaryConfig;
 }
 
@@ -22,6 +23,7 @@ const getConfig = (): Config => {
     jwtExpiry: process.env.JWT_EXPIRY || '24h',
     databaseUrl: process.env.DATABASE_URL || '',
     nodeEnv: process.env.NODE_ENV || 'development',
+    aiPocUrl: process.env.AI_POC_URL || 'http://localhost:8001',
     cloudinary: {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
       apiKey: process.env.CLOUDINARY_API_KEY || '',

@@ -16,7 +16,7 @@ npm install
 ### Environment Setup
 Create a `.env` file in the backend directory:
 ```env
-DATABASE_URL="postgresql://postgres:Kalpan@2007@localhost:5432/NyayaSankalan?schema=public"
+DATABASE_URL="postgresql://postgres:Kalpan@20@localhost:5432/NyayaSankalan?schema=public"
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
 JWT_EXPIRY="24h"
 PORT=5000
