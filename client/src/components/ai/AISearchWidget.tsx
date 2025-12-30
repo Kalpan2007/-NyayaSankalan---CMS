@@ -100,6 +100,7 @@ export const AISearchWidget: React.FC = () => {
               placeholder="Search using IPC sections, entities, case details or keywords…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              wrapperClassName="mb-0"
             />
           </div>
 
@@ -114,10 +115,11 @@ export const AISearchWidget: React.FC = () => {
                 { value: '8', label: '8' },
                 { value: '10', label: '10' },
               ]}
+              wrapperClassName="mb-0"
             />
           </div>
 
-          <div>
+          <div className="self-end">
             <Button variant="primary" onClick={handleSearch} isLoading={isLoading}>
               {isLoading ? '🔍 Searching…' : '🔍 Search'}
             </Button>
