@@ -4,6 +4,7 @@ import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
 import apiClient from '../../api/axios';
 import toast from 'react-hot-toast';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface GenerateDraftModalProps {
   caseId: string;
@@ -23,6 +24,9 @@ export const GenerateDraftModal: React.FC<GenerateDraftModalProps> = ({ caseId, 
   const [context, setContext] = useState<string>('');
   const [draft, setDraft] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Enable ESC key to close modal
+  useEscapeKey(onClose);
 
   const handleUseDraft = () => {
     if (!draft || !onUseDraft) {
@@ -84,7 +88,14 @@ export const GenerateDraftModal: React.FC<GenerateDraftModalProps> = ({ caseId, 
               <h3 className="text-xl font-semibold">AI-Assisted Draft — Review Before Saving</h3>
               <p className="text-sm text-gray-600 mt-1">No auto-save. You remain in control.</p>
             </div>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 transition-colors"
+              title="Close (Press ESC)"
+              aria-label="Close modal"
+            >
+              ✕
+            </button>
           </div>
 
           <div className="mt-3 rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800">

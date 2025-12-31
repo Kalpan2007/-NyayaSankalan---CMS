@@ -19,6 +19,7 @@ import jsPDF from 'jspdf';
 import type { Case, CourtAction } from '../../types/api.types';
 import { CaseState, CourtActionType } from '../../types/api.types';
 import { getCaseStateBadgeVariant, getCaseStateLabel, isInCourt } from '../../utils/caseState';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 export const JudgeCaseDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +35,9 @@ export const JudgeCaseDetails: React.FC = () => {
   const [draftError, setDraftError] = useState<string | null>(null);
 
   const isHearingDraftEnabled = (import.meta.env.VITE_FEATURE_HEARING_ORDER_AI ?? 'true') !== 'false';
+
+  // Enable ESC key to close modal
+  useEscapeKey(() => setIsDraftModalOpen(false), isDraftModalOpen);
 
   // Court action form state
   const [actionType, setActionType] = useState<CourtActionType>(CourtActionType.HEARING);
@@ -130,7 +134,7 @@ export const JudgeCaseDetails: React.FC = () => {
       `Hearing date: ${hearingDateLabel}`,
       `IPC sections / charges: ${sections}`,
       `Parties / advocates: ${partiesSummary}`,
-      `Issues considered: <list issues>` ,
+      `Issues considered: <list issues>`,
       `Directions / compliance actions: <list directions, timelines, responsible parties>`,
     ].join('\n');
   };
@@ -175,7 +179,7 @@ export const JudgeCaseDetails: React.FC = () => {
 
   const handleDownloadDraft = () => {
     if (!draftText) return;
-    
+
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -183,12 +187,12 @@ export const JudgeCaseDetails: React.FC = () => {
       const margin = 15;
       const maxWidth = pageWidth - 2 * margin;
       const lineHeight = 7;
-      
+
       // Title
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('Hearing Order', pageWidth / 2, 20, { align: 'center' });
-      
+
       // Case info
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -199,11 +203,11 @@ export const JudgeCaseDetails: React.FC = () => {
       }
       doc.text(`Case ID: ${caseData?.id}`, margin, yPos);
       yPos += lineHeight + 5;
-      
+
       // Draft content
       doc.setFontSize(11);
       const lines = doc.splitTextToSize(draftText, maxWidth);
-      
+
       lines.forEach((line: string) => {
         if (yPos + lineHeight > pageHeight - margin) {
           doc.addPage();
@@ -212,7 +216,7 @@ export const JudgeCaseDetails: React.FC = () => {
         doc.text(line, margin, yPos);
         yPos += lineHeight;
       });
-      
+
       doc.save(`hearing-order-${caseData?.fir?.firNumber || caseData?.id}.pdf`);
       toast.success('Draft downloaded as PDF');
     } catch (err) {
@@ -508,7 +512,14 @@ export const JudgeCaseDetails: React.FC = () => {
                   <h3 className="text-xl font-semibold">Hearing Order Draft (AI-assisted)</h3>
                   <p className="text-sm text-gray-600 mt-1">Read-only assistance. Nothing is auto-saved or attached.</p>
                 </div>
-                <button onClick={() => setIsDraftModalOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                <button
+                  onClick={() => setIsDraftModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Close (Press ESC)"
+                  aria-label="Close modal"
+                >
+                  ✕
+                </button>
               </div>
               <div className="mt-3 rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800">
                 ⚠ Human-in-loop — Review and edit before use. No DB write or workflow change.
