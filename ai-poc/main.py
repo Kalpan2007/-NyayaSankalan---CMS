@@ -188,3 +188,54 @@ async def search(q: str = None, k: int = 5):
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
+
+@app.post('/chat')
+async def chat(q: str = Form(...), k: int = Form(3), model: str = Form(None)):
+    """RAG Chat: Search index and answer question."""
+    try:
+        if not q.strip():
+             return JSONResponse({"success": False, "error": "Query required"}, status_code=400)
+
+        # 0. Quick Greeting Check
+        user_query = q.lower().strip()
+        greetings = ["hi", "hello", "hey", "namaste", "hola"]
+        if user_query in greetings:
+            return JSONResponse({
+                "success": True, 
+                "answer": "Hello! I am your Legal Co-Pilot. I can answer questions based on the uploaded case documents. Try asking about a specific FIR or Evidence.", 
+                "sources": []
+            })
+
+        # 1. Retrieve
+        from utils.faiss_index import search_index, index_exists
+        if not index_exists():
+            return JSONResponse({"success": True, "answer": "The Knowledge Base is empty. Please upload/index some documents first.", "sources": []})
+        
+        results = search_index(q, k)
+        
+        # 2. Augment
+        context_parts = []
+        sources = []
+        for res in results:
+            text = res.get('text', '')
+            meta = res.get('metadata', {})
+            src = meta.get('sourceFile', 'unknown')
+            score = res.get('score', 0)
+            context_parts.append(f"Source ({src}): {text}")
+            sources.append({"source": src, "score": score, "id": meta.get('id')})
+        
+        full_context = "\n\n".join(context_parts)
+        
+        # 3. Generate
+        from utils.generator import generate_answer_from_context
+        gen_res = generate_answer_from_context(full_context, q, model)
+        
+        return JSONResponse({
+            "success": True, 
+            "answer": gen_res.get('answer'), 
+            "sources": sources,
+            "debug": {"model": gen_res.get('modelInfo')}
+        })
+
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)

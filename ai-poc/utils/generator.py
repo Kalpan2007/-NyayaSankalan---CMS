@@ -75,3 +75,34 @@ def generate_draft_from_text(text: str, model: Optional[str] = None) -> Dict[str
     )
     return {"draft": fallback, "modelInfo": "fallback", "prompt": prompt}
 
+
+def generate_answer_from_context(context: str, question: str, model: Optional[str] = None) -> Dict[str, Optional[str]]:
+    """Generate an answer for a question given a context."""
+    if not question:
+        return {"answer": "Please ask a question.", "modelInfo": None}
+    
+    prompt = (
+        f"You are a helpful legal assistant. Use the following context to answer the question faithfully. "
+        f"If the answer is not in the context, say 'I don't have enough information'.\n\n"
+        f"CONTEXT:\n{context}\n\n"
+        f"QUESTION: {question}\n\n"
+        f"ANSWER:"
+    )
+    
+    model = model or DEFAULT_MODEL
+
+    # Reuse existing generation logic
+    # Try HF API if token provided
+    if HF_API_TOKEN:
+        out = _call_hf_api(prompt, model=model)
+        if out:
+            return {"answer": out.strip(), "modelInfo": f"hf-api:{model}", "prompt": prompt}
+
+    # Try local transformer
+    out = _call_local_transformer(prompt, model=model)
+    if out:
+        return {"answer": out.strip(), "modelInfo": f"local:{model}", "prompt": prompt}
+
+    # Fallback
+    return {"answer": "AI service offline or busy. Please try again.", "modelInfo": "fallback", "prompt": prompt}
+

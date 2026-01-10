@@ -16,6 +16,8 @@ import timelineRoutes from './modules/timeline/timeline.routes';
 import searchRoutes from './modules/search/search.routes';
 import closureReportRoutes from './modules/closure-report/closure-report.routes';
 import aiRoutes from './modules/ai/ai.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
+import aiEnhancedRoutes from './modules/ai/ai-enhanced.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { ApiError } from './utils/ApiError';
 import { validateCloudinaryConfig } from './config/cloudinary';
@@ -89,6 +91,8 @@ export const createApp = (): Application => {
   app.use('/api/search', searchRoutes); // /api/search?q=query
   app.use('/api', closureReportRoutes); // /api/cases/:caseId/closure-report
   app.use('/api/ai', aiRoutes); // /api/ai/search, /api/ai/index
+  app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/ai', aiEnhancedRoutes); // /api/ai/enhanced/*
 
   // 404 handler
   app.use((req, res, next) => {

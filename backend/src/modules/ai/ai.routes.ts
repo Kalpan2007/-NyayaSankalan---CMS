@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { rebuildIndex, proxySearch, indexDocument, proxyOcrExtract, proxyGenerateDraft } from './ai.controller';
+import { rebuildIndex, syncIndexFromDatabase, proxySearch, indexDocument, proxyOcrExtract, proxyGenerateDraft, proxyChat } from './ai.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { uploadSingle } from '../../middleware/upload.middleware';
 
@@ -13,6 +13,9 @@ router.post('/index/doc/:id', authenticate, indexDocument);
 
 // GET /api/ai/search?q=...&k=5 -> proxy search
 router.get('/search', authenticate, proxySearch);
+
+// POST /api/ai/chat -> RAG Chat
+router.post('/chat', authenticate, proxyChat);
 
 // POST /api/ai/ocr-extract -> OCR extract (demo)
 router.post('/ocr-extract', authenticate, uploadSingle('file'), proxyOcrExtract);

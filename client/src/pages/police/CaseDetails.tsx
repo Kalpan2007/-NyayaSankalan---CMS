@@ -18,6 +18,7 @@ import type { Case, DocumentRequest } from '../../types/api.types';
 import { CaseState, EvidenceCategory, AccusedStatus } from '../../types/api.types';
 import { getCaseStateBadgeVariant, getCaseStateLabel } from '../../utils/caseState';
 import { CaseTimeline } from '../../components/case/CaseTimeline';
+import { AuditPanel } from '../../components/case/AuditPanel';
 import { ClosureReportButton } from '../../components/case/ClosureReportButton';
 import { GenerateDraftModal } from '../../components/ai/GenerateDraftModal';
 
@@ -399,6 +400,11 @@ export const PoliceCaseDetails: React.FC = () => {
           <div>
             <CaseTimeline caseId={id!} />
           </div>
+        </Card>
+
+        {/* Audit Trail */}
+        <Card title="Audit Trail">
+          <AuditPanel caseId={id!} />
         </Card>
 
         {/* FIR Details */}

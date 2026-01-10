@@ -49,6 +49,7 @@ export class TimelineService {
       courtSubmissions,
       courtActions,
       bailRecords,
+      evidenceRecords,
     ] = await Promise.all([
       prisma.investigationEvent.findMany({
         where: { caseId },
@@ -72,6 +73,10 @@ export class TimelineService {
       prisma.bailRecord.findMany({
         where: { caseId },
         include: { accused: true },
+      }),
+      prisma.evidence.findMany({
+        where: { caseId },
+        include: { user: { select: { name: true } } },
       }),
     ]);
 
@@ -144,6 +149,17 @@ export class TimelineService {
         timestamp: bail.createdAt,
         title: `Bail ${bail.status}: ${bail.accused.name}`,
         description: `Type: ${bail.bailType}`,
+      });
+    });
+
+    // Evidence records
+    evidenceRecords.forEach((evidence) => {
+      timeline.push({
+        type: 'EVIDENCE',
+        timestamp: evidence.uploadedAt,
+        title: `Evidence: ${evidence.category}`,
+        description: evidence.fileName || 'File uploaded',
+        actor: evidence.user.name,
       });
     });
 

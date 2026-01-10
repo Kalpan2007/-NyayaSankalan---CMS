@@ -59,7 +59,7 @@ export class AIService {
     });
     if (!res.ok) throw new Error(`AI service error: ${res.status}`);
     const data = await res.json();
-    
+
     // ai-poc returns extractionId and entities, but extracted text is stored in JSON
     // Fetch the full extraction to get the extracted text
     if (data.data?.extractionId) {
@@ -74,7 +74,7 @@ export class AIService {
         }
       }
     }
-    
+
     return data;
   }
 
@@ -82,7 +82,7 @@ export class AIService {
     // ai-poc /generate-draft expects form data with 'text' and optionally 'model'
     // Construct a simple prompt from context or use a default
     const promptText = payload.context || `Generate a ${payload.documentType} document`;
-    
+
     const formData = new URLSearchParams();
     formData.append('text', promptText);
     formData.append('model', 'flan-t5-small');
@@ -105,7 +105,7 @@ export class AIService {
   }): Promise<string> {
     const extractionId = crypto.randomUUID();
     const outputDir = this.getOutputDir();
-    
+
     // Ensure directory exists and is writable
     try {
       await fs.mkdir(outputDir, { recursive: true });
@@ -157,6 +157,25 @@ export class AIService {
       await this.indexDocument(extractionId);
     } catch (err) {
       console.error('AI indexing skipped for FIR extraction', err);
+    }
+  }
+
+  async chat(payload: { q: string; k?: number; model?: string }): Promise<any> {
+    const formData = new FormData();
+    formData.append('q', payload.q);
+    if (payload.k) formData.append('k', payload.k.toString());
+    if (payload.model) formData.append('model', payload.model);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/chat`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error(`AI Chat Error: ${response.status}`);
+      return response.json();
+    } catch (error) {
+      console.error('AI Chat Error:', error);
+      throw error;
     }
   }
 }

@@ -360,6 +360,8 @@ model Evidence {
   caseId     String           @db.Uuid
   category   EvidenceCategory
   fileUrl    String
+  fileName   String?          // Metadata for display/download
+  mimeType   String?          // Metadata for icon/handling
   uploadedBy String           @db.Uuid
   uploadedAt DateTime         @default(now())
 

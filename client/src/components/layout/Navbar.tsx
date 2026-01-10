@@ -108,6 +108,9 @@ export const Navbar: React.FC = () => {
                   <Link to="/police/dashboard" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap">
                     Dashboard
                   </Link>
+                  <Link to="/police/analytics" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap font-medium text-blue-700">
+                    Analytics 📊
+                  </Link>
                   <Link to="/police/create-fir" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap">
                     Create FIR
                   </Link>

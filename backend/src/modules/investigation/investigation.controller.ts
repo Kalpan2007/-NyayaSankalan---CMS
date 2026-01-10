@@ -16,11 +16,11 @@ const investigationService = new InvestigationService();
  */
 export const createInvestigationEvent = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
-  
+
   if (!req.user) {
     throw ApiError.unauthorized('Authentication required');
   }
-  
+
   const userId = req.user.id;
   const organizationId = req.user.organizationId;
 
@@ -46,11 +46,11 @@ export const createInvestigationEvent = asyncHandler(async (req: Request, res: R
  */
 export const getInvestigationEvents = asyncHandler(async (req: Request, res: Response) => {
   const { caseId } = req.params;
-  
+
   if (!req.user) {
     throw ApiError.unauthorized('Authentication required');
   }
-  
+
   const organizationId = req.user.organizationId;
 
   if (!organizationId) {
@@ -102,6 +102,8 @@ export const createEvidence = asyncHandler(async (req: Request, res: Response) =
   const evidenceData = {
     category: req.body.category,
     fileUrl,
+    fileName: req.file?.originalname,
+    mimeType: req.file?.mimetype,
   };
 
   const evidence = await investigationService.createEvidence(caseId, evidenceData, userId, organizationId);

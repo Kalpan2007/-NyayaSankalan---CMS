@@ -4,7 +4,7 @@ import { Header } from '../../components/layout/Header';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Loader } from '../../components/common/Loader';
+import { DashboardSkeleton } from '../../components/common/DashboardSkeleton';
 import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { CaseStatusPieChart, ProgressBar } from '../../components/charts';
 import { caseApi } from '../../api';
@@ -34,7 +34,20 @@ export const PoliceDashboard: React.FC = () => {
     }
   };
 
-  if (isLoading) return <Loader />;
+  if (isLoading) return (
+    <>
+      <Header
+        title="Police Dashboard"
+        subtitle="Manage FIRs and investigations"
+        action={
+          <Link to="/police/create-fir">
+            <Button variant="primary">+ Create FIR</Button>
+          </Link>
+        }
+      />
+      <DashboardSkeleton />
+    </>
+  );
   if (error) return <ErrorMessage message={error} retry={fetchMyCases} />;
 
   // Calculate stats

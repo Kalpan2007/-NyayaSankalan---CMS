@@ -11,6 +11,7 @@ import { Loader } from '../../components/common/Loader';
 import { ErrorMessage } from '../../components/common/ErrorMessage';
 import { EmptyState } from '../../components/common/EmptyState';
 import { CaseTimeline } from '../../components/case/CaseTimeline';
+import { AuditPanel } from '../../components/case/AuditPanel';
 import { ClosureReportButton } from '../../components/case/ClosureReportButton';
 import { caseApi, courtApi, organizationApi } from '../../api';
 import type { Officer } from '../../api/organization.api';
@@ -372,6 +373,11 @@ export const SHOCaseDetails: React.FC = () => {
         {/* Case Timeline */}
         <Card title="Case Timeline">
           <CaseTimeline caseId={id!} />
+        </Card>
+
+        {/* Audit Trail */}
+        <Card title="Audit Trail">
+          <AuditPanel caseId={id!} />
         </Card>
 
         {/* Back Button */}
