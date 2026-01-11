@@ -10,8 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Round_1-AI_Foundation-blue?style=flat-square" alt="Round 1" />
-  <img src="https://img.shields.io/badge/Round_2-UI/UX_Polish-green?style=flat-square" alt="Round 2" />
-  <img src="https://img.shields.io/badge/Round_3-Advanced_AI-purple?style=flat-square" alt="Round 3" />
+  <img src="https://img.shields.io/badge/Round_2-Make More Automedted-green?style=flat-square" alt="Round 2" />
   <img src="https://img.shields.io/badge/Status-Production_Ready-brightgreen?style=flat-square" alt="Status" />
 </p>
 
