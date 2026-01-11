@@ -3,7 +3,6 @@ import { Card } from '../ui/Card';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { Loader } from '../common/Loader';
 import { SectionExplainerSkeleton } from '../common/SkeletonLoader';
 import toast from 'react-hot-toast';
 import { aiEnhancedApi } from '../../api/aiEnhanced.api';
